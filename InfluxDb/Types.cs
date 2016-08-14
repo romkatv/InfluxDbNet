@@ -32,6 +32,6 @@ namespace InfluxDb
 
     public interface IBackend
     {
-        Task Send(IEnumerable<Point> points, TimeSpan timeout);
+        Task Send(List<Point> points, TimeSpan timeout);
     }
 }

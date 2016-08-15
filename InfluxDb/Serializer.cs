@@ -8,7 +8,7 @@ namespace InfluxDb
 {
     static class Serializer
     {
-        static readonly char[] KeySpecialChars = new char[] { '\\', ' ', '.', '=' };
+        static readonly char[] KeySpecialChars = new char[] { '\\', ' ', ',', '=' };
 
         public static string Serialize(List<Point> points)
         {

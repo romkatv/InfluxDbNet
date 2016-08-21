@@ -13,13 +13,15 @@ namespace InfluxDb
         static readonly char[] KeySpecialChars = new char[] { '\\', ' ', ',', '=' };
         static readonly char[] FieldSpecialChars = new char[] { '\\', '"' };
 
-        public static string Serialize(List<Point> points)
+        public static string Serialize(IEnumerable<Point> points)
         {
             var sb = new StringBuilder();
-            for (int i = 0; i != points.Count; ++i)
+            bool first = true;
+            foreach (Point p in points)
             {
-                if (i != 0) sb.Append('\n');
-                WritePoint(points[i], sb);
+                if (first) first = false;
+                else sb.Append('\n');
+                WritePoint(p, sb);
             }
             return sb.ToString();
         }

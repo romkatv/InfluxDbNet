@@ -18,7 +18,6 @@ namespace InfluxDb
         // These fields are protected by _monitor.
         DateTime _next;
         Func<bool> _cancel;
-        bool _disposed = false;
 
         // Runs the action after the specified delay and then periodically. Does not block. Action runs are serialized.
         // Given three consecutive action runs a1, a2, and a3, it's guaranteed that start_time(a3) - end_time(a1) >= period.
@@ -39,9 +38,15 @@ namespace InfluxDb
             _scheduler = scheduler;
             _work = work;
             _period = period;
+            _next = DateTime.UtcNow + delay;
+            _cancel = null;
+        }
+
+        public void Start()
+        {
             lock (_monitor)
             {
-                _next = DateTime.UtcNow + delay;
+                if (_cancel != null) throw new Exception("Already started");
                 _cancel = _scheduler.Schedule(_next, DoRun);
             }
         }
@@ -54,7 +59,7 @@ namespace InfluxDb
         {
             lock (_monitor)
             {
-                if (_disposed) throw new ObjectDisposedException("PeriodicAction");
+                if (_cancel == null) throw new Exception("Not started");
                 if (_cancel.Invoke())
                 {
                     _next = DateTime.UtcNow;
@@ -72,10 +77,13 @@ namespace InfluxDb
         {
             lock (_monitor)
             {
-                _disposed = true;
-                // Best effort. If _cancel() returns false, the action is currently
-                // running. Don't wait for it to finish.
-                _cancel.Invoke();
+                if (_cancel != null)
+                {
+                    // Best effort. If _cancel() returns false, the action is currently
+                    // running. Don't wait for it to finish.
+                    _cancel.Invoke();
+                    _cancel = null;
+                }
             }
         }
 
@@ -93,7 +101,7 @@ namespace InfluxDb
             DateTime end = DateTime.UtcNow;
             lock (_monitor)
             {
-                if (_disposed) return;
+                if (_cancel == null) return;  // Dispose() has been called
                 _next = Max(_next + _period, end);
                 _cancel = _scheduler.Schedule(_next, DoRun);
             }

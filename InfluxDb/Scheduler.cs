@@ -12,7 +12,7 @@ namespace InfluxDb
     // run in different threads but they won't run concurrently.
     // Actions can be scheduled in the future. The execution order is what you
     // would expect: stable sorting by the scheduled time.
-    class Scheduler : IDisposable
+    public class Scheduler : IDisposable
     {
         private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 

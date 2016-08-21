@@ -28,17 +28,19 @@ namespace InfluxDb
 
         // Schedules the specified action to run at the specified time.
         //
-        // TODO: return a handle that allows for best-effort non-blocking cancellation.
-        // Then use it in Turnstile for cancelling timeouts and avoid excessive memory usage.
-        public void Schedule(DateTime when, Action action)
+        // When the returned Func is called, it cancels the action if it hasn't run yet
+        // and returns true. If the action has already run or is about to run, it does
+        // nothing and returns false. It's OK to call it multiple times (all consequent
+        // calls return false).
+        public Func<bool> Schedule(DateTime when, Action action)
         {
-            _actions.Push(action, when);
+            return _actions.Push(action, when);
         }
 
         // Schedules the specified action to run ASAP.
-        public void Schedule(Action action)
+        public Func<bool> Schedule(Action action)
         {
-            Schedule(DateTime.UtcNow, action);
+            return Schedule(DateTime.UtcNow, action);
         }
 
         // Returns true if there are ready actions in the queue. The action that may currently be

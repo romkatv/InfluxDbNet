@@ -38,9 +38,11 @@ namespace InfluxDb
             return res;
         }
 
-        public void Push(TKey key, TValue value)
+        public Func<bool> Push(TKey key, TValue value)
         {
-            _data.Add(Tuple.Create(key, _index++), value);
+            var id = Tuple.Create(key, _index++);
+            _data.Add(id, value);
+            return () => { return _data.Remove(id); };
         }
     }
 }

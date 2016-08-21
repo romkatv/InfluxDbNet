@@ -27,11 +27,12 @@ namespace InfluxDb
         Task _next = null;
 
         // Adds an element to the queue. It'll be ready for processing at the specified time.
-        public void Push(TValue value, DateTime when)
+        public Func<bool> Push(TValue value, DateTime when)
         {
+            Func<bool> cancel;
             lock (_monitor)
             {
-                _data.Push(when, value);
+                cancel = _data.Push(when, value);
                 if (_next != null)
                 {
                     Task next = _next;
@@ -39,6 +40,7 @@ namespace InfluxDb
                     Task.Run(() => next.RunSynchronously());
                 }
             }
+            return () => { lock (_monitor) return cancel(); };
         }
 
         // Returns the next ready message when it becomes ready.

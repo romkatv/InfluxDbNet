@@ -16,58 +16,46 @@ namespace InfluxDb
         readonly Func<Task> _work;
         readonly TimeSpan _period;
         // These fields are protected by _monitor.
-        DateTime _next;
-        Func<bool> _cancel;
+        DateTime _next = new DateTime();
+        Func<bool> _cancel = null;
+        bool _disposed = false;
 
-        // Runs the action after the specified delay and then periodically. Does not block. Action runs are serialized.
+        // Remembers the arguments. Doesn't do anything else. Call Schedule() for something interesting to happen.
+        public PeriodicAction(Scheduler scheduler, TimeSpan period, Func<Task> work)
+        {
+            Condition.Requires(scheduler, "scheduler").IsNotNull();
+            Condition.Requires(work, "work").IsNotNull();
+            Condition.Requires(period, "period").IsGreaterOrEqual(TimeSpan.Zero);
+            _scheduler = scheduler;
+            _work = work;
+            _period = period;
+        }
+
+        // Runs the action at (or after) the specified time and then periodically. Does not block. Action runs are serialized.
         // Given three consecutive action runs a1, a2, and a3, it's guaranteed that start_time(a3) - end_time(a1) >= period.
         // If actions run fast enough, there is no slippage (N-th action starts soon after delay + N * period).
         // If slippage occurs due to a slow run of one of the actions, it's permanent (all future action runs will be
         // delayed).
         //
-        // The action runs on the provided scheduler. If it returns a non-null task, the action is considered finished
-        // when the task finishes.
+        // The action runs on the scheduler provided in the constructor. If it returns a non-null task, the action is considered
+        // finished when the task finishes.
         //
         // To stop running the action, call Dispose().
-        public PeriodicAction(Scheduler scheduler, TimeSpan delay, TimeSpan period, Func<Task> work)
-        {
-            Condition.Requires(scheduler, "scheduler").IsNotNull();
-            Condition.Requires(work, "work").IsNotNull();
-            Condition.Requires(delay, "delay").IsGreaterOrEqual(TimeSpan.Zero);
-            Condition.Requires(period, "period").IsGreaterOrEqual(TimeSpan.Zero);
-            _scheduler = scheduler;
-            _work = work;
-            _period = period;
-            _next = DateTime.UtcNow + delay;
-            _cancel = null;
-        }
-
-        public void Start()
-        {
-            lock (_monitor)
-            {
-                if (_cancel != null) throw new Exception("Already started");
-                _cancel = _scheduler.Schedule(_next, DoRun);
-            }
-        }
-
-        // Guarantees that a fresh run will happen ASAP. If the action is currently running, another one
-        // will start immediately after it finishes.
         //
-        // It's allowed to call RunSoon() from the action.
-        public void RunSoon()
+        // Schedule() can be called multiple times. It's allowed to call it from the action.
+        public void Schedule(DateTime when)
         {
             lock (_monitor)
             {
-                if (_cancel == null) throw new Exception("Not started");
-                if (_cancel.Invoke())
+                if (_disposed) throw new ObjectDisposedException("PeriodicAction");
+                if (_cancel == null || _cancel.Invoke())
                 {
-                    _next = DateTime.UtcNow;
+                    _next = when;
                     _cancel = _scheduler.Schedule(_next, DoRun);
                 }
                 else
                 {
-                    _next = DateTime.UtcNow - _period;
+                    _next = when - _period;
                 }
             }
         }
@@ -77,13 +65,10 @@ namespace InfluxDb
         {
             lock (_monitor)
             {
-                if (_cancel != null)
-                {
-                    // Best effort. If _cancel() returns false, the action is currently
-                    // running. Don't wait for it to finish.
-                    _cancel.Invoke();
-                    _cancel = null;
-                }
+                // Best effort. If _cancel() returns false, the action is currently
+                // running. Don't wait for it to finish.
+                if (_cancel != null) _cancel.Invoke();
+                _disposed = true;
             }
         }
 
@@ -101,7 +86,7 @@ namespace InfluxDb
             DateTime end = DateTime.UtcNow;
             lock (_monitor)
             {
-                if (_cancel == null) return;  // Dispose() has been called
+                if (_disposed) return;
                 _next = Max(_next + _period, end);
                 _cancel = _scheduler.Schedule(_next, DoRun);
             }

@@ -13,7 +13,7 @@ namespace InfluxDb
 
         readonly object _monitor = new object();
         readonly Scheduler _scheduler;
-        readonly Action _work;
+        readonly Func<Task> _work;
         readonly TimeSpan _period;
         // These fields are protected by _monitor.
         DateTime _next;
@@ -26,10 +26,11 @@ namespace InfluxDb
         // If slippage occurs due to a slow run of one of the actions, it's permanent (all future action runs will be
         // delayed).
         //
-        // The action runs on the provided scheduler.
+        // The action runs on the provided scheduler. If it returns a non-null task, the action is considered finished
+        // when the task finishes.
         //
         // To stop running the action, call Dispose().
-        public PeriodicAction(Scheduler scheduler, TimeSpan delay, TimeSpan period, Action work)
+        public PeriodicAction(Scheduler scheduler, TimeSpan delay, TimeSpan period, Func<Task> work)
         {
             Condition.Requires(scheduler, "scheduler").IsNotNull();
             Condition.Requires(work, "work").IsNotNull();
@@ -45,8 +46,7 @@ namespace InfluxDb
             }
         }
 
-        // Guarantees that a fresh run will happen ASAP.
-        // If the action is currently running, another one
+        // Guarantees that a fresh run will happen ASAP. If the action is currently running, another one
         // will start immediately after it finishes.
         //
         // It's allowed to call RunSoon() from the action.
@@ -67,19 +67,6 @@ namespace InfluxDb
             }
         }
 
-        void DoRun()
-        {
-            try { _work.Invoke(); }
-            catch (Exception e) { _log.Warn(e, "Ignoring exception from periodic action"); }
-            DateTime end = DateTime.UtcNow;
-            lock (_monitor)
-            {
-                if (_disposed) return;
-                _next = Max(_next + _period, end);
-                _cancel = _scheduler.Schedule(_next, DoRun);
-            }
-        }
-
         // Doesn't block, even if the action is currently running in another thread.
         public void Dispose()
         {
@@ -89,6 +76,26 @@ namespace InfluxDb
                 // Best effort. If _cancel() returns false, the action is currently
                 // running. Don't wait for it to finish.
                 _cancel.Invoke();
+            }
+        }
+
+        async void DoRun()
+        {
+            try
+            {
+                Task t = _work.Invoke();
+                if (t != null) await t;
+            }
+            catch (Exception e)
+            {
+                _log.Warn(e, "Ignoring exception from periodic action");
+            }
+            DateTime end = DateTime.UtcNow;
+            lock (_monitor)
+            {
+                if (_disposed) return;
+                _next = Max(_next + _period, end);
+                _cancel = _scheduler.Schedule(_next, DoRun);
             }
         }
 

@@ -17,6 +17,8 @@ namespace InfluxDb
 
     public class PublisherConfig
     {
+        // Zero means no downsampling.
+        public TimeSpan SamplingPeriod { get; set; }
         // Negative means infinity.
         public int MaxStoredPoints { get; set; }
         // Negative means infinity.
@@ -38,12 +40,15 @@ namespace InfluxDb
         // Negative means infinity.
         readonly int _maxSize;
         readonly OnFull _onFull;
+        readonly TimeSpan _samplingPeriod;
         readonly Nito.Deque<Point> _points = new Nito.Deque<Point>();
 
-        public PointBuffer(int maxSize, OnFull onFull)
+        public PointBuffer(int maxSize, OnFull onFull, TimeSpan samplingPeriod)
         {
+            Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
             _maxSize = maxSize;
             _onFull = onFull;
+            _samplingPeriod = samplingPeriod;
         }
 
         public int Count { get { return _points.Count; } }
@@ -54,18 +59,44 @@ namespace InfluxDb
             // This is essentially insertion sort.
             // Since timestamps usually come in asceding order, it should be fast.
             while (idx > 0 && _points[idx - 1].Timestamp > p.Timestamp) --idx;
-            _points.Insert(idx, p);
-            MaybeCompact();
+            if (idx > 0 && idx < _points.Count && UselessMiddle(_points[idx - 1], p, _points[idx]))
+            {
+                // The point is in between two existing points both of which are within _samplingPeriod.
+                return;
+            }
+            // Can we drop _points[idx - 1]?
+            bool uselessLeft = idx > 1 && UselessMiddle(_points[idx - 2], _points[idx - 1], p);
+            // Can we drop _points[idx]?
+            bool uselessRight = idx + 1 < _points.Count && UselessMiddle(p, _points[idx], _points[idx + 1]);
+            if (uselessLeft && uselessRight)
+            {
+                _points.RemoveAt(idx);
+                _points[idx - 1] = p;
+            }
+            else if (uselessLeft)
+            {
+                _points[idx - 1] = p;
+            }
+            else if (uselessRight)
+            {
+                _points[idx] = p;
+            }
+            else
+            {
+                _points.Insert(idx, p);
+                MaybeCompact();
+            }
         }
 
         // Negative means infinity.
-        public List<Point> ConsumeOldest(int n)
+        public void ConsumeAppendOldest(int n, List<Point> target)
         {
             n = n < 0 ? _points.Count : Math.Min(n, _points.Count);
-            var res = new List<Point>(n);
-            res.AddRange(_points.Take(n));
-            _points.RemoveRange(0, n);
-            return res;
+            while (n-- > 0)
+            {
+                target.Add(_points.First());
+                _points.RemoveFromFront();
+            }
         }
 
         void MaybeCompact()
@@ -83,6 +114,12 @@ namespace InfluxDb
                 }
             }
         }
+
+        bool UselessMiddle(Point p1, Point p2, Point p3)
+        {
+            return p2.Timestamp - p1.Timestamp < _samplingPeriod &&
+                   p3.Timestamp - p2.Timestamp < _samplingPeriod;
+        }
     }
 
     public class Publisher : ISink, IDisposable
@@ -90,7 +127,7 @@ namespace InfluxDb
         readonly object _monitor = new object();
         readonly IBackend _backend;
         readonly PublisherConfig _cfg;
-        readonly PointBuffer _points;
+        readonly Dictionary<string, PointBuffer> _points = new Dictionary<string, PointBuffer>();
         readonly PeriodicAction _send;
         // Value is true if the entry was added before _batch was cut.
         readonly Dictionary<Reference<Action>, bool> _wake = new Dictionary<Reference<Action>, bool>();
@@ -103,7 +140,6 @@ namespace InfluxDb
             _backend = backend;
             _cfg = cfg.Clone();
             if (_cfg.Scheduler == null) _cfg.Scheduler = new Scheduler();
-            _points = new PointBuffer(_cfg.MaxStoredPoints, _cfg.OnFull);
             _send = new PeriodicAction(_cfg.Scheduler, _cfg.SendPeriod, DoFlush);
             _send.Schedule(DateTime.UtcNow + _cfg.SendPeriod);
         }
@@ -112,7 +148,13 @@ namespace InfluxDb
         {
             lock (_monitor)
             {
-                _points.Add(p);
+                PointBuffer buf;
+                if (!_points.TryGetValue(p.Name, out buf))
+                {
+                    buf = new PointBuffer(_cfg.MaxStoredPoints, _cfg.OnFull, _cfg.SamplingPeriod);
+                    _points.Add(p.Name, buf);
+                }
+                buf.Add(p);
                 if (_batch == null && IsFull())
                 {
                     MakeBatch();
@@ -149,7 +191,12 @@ namespace InfluxDb
         {
             Condition.Requires(_batch, "_batch").IsNull();
             Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
-            _batch = _points.ConsumeOldest(_cfg.MaxPointsPerBatch);
+            _batch = new List<Point>();
+            foreach (PointBuffer buf in _points.Values)
+            {
+                buf.ConsumeAppendOldest(
+                    _cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
+            }
             foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
         }
 

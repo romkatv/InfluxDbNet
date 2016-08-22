@@ -101,17 +101,14 @@ namespace InfluxDb
 
         void MaybeCompact()
         {
-            if (_maxSize < 0) return;
-            while (_points.Count > _maxSize)
+            if (_maxSize < 0 || _points.Count <= _maxSize) return;
+            switch (_onFull)
             {
-                switch (_onFull)
-                {
-                    case OnFull.DropOldest:
-                        _points.RemoveFromFront();
-                        break;
-                    default:
-                        throw new NotImplementedException("OnFull = " + _onFull);
-                }
+                case OnFull.DropOldest:
+                    do { _points.RemoveFromFront(); } while (_points.Count > _maxSize);
+                    break;
+                default:
+                    throw new NotImplementedException("OnFull = " + _onFull);
             }
         }
 

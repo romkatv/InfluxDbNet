@@ -67,7 +67,6 @@
     <Compile Include="Strings.cs" />
     <Compile Include="Synchronized.cs" />
     <Compile Include="Types.cs" />
-    <Compile Include="Variant.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="NLog.config">

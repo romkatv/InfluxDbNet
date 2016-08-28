@@ -1,4 +1,5 @@
 ﻿using Conditions;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +11,9 @@ namespace InfluxDb
 {
     public class Measurement<TColumns>
     {
+        static readonly Logger _log = LogManager.GetCurrentClassLogger();
+        readonly static MemberExtractor _extractor = new MemberExtractor(typeof(TColumns));
+
         readonly string _name;
         readonly IClock _clock;
         readonly ISink _sink;
@@ -35,8 +39,31 @@ namespace InfluxDb
             {
                 Name = _name,
                 Timestamp = t,
-                // TODO
+                Tags = new SortedDictionary<string, string>(),
+                Fields = new SortedDictionary<string, Field>(),
             };
+            _extractor.Extract
+            (
+                cols,
+                (key, val) =>
+                {
+                    if (p.Tags.ContainsKey(key))
+                    {
+                        _log.Warn("Duplicate tag name {0} in {1}", key, typeof(TColumns).Name);
+                        return;
+                    }
+                    p.Tags.Add(key, val);
+                },
+                (key, val) =>
+                {
+                    if (p.Fields.ContainsKey(key))
+                    {
+                        _log.Warn("Duplicate field name {0} in {1}", key, typeof(TColumns).Name);
+                        return;
+                    }
+                    p.Fields.Add(key, val);
+                }
+            );
             _sink.Write(p);
         }
     }

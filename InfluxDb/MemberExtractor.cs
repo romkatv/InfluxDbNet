@@ -38,55 +38,74 @@ namespace InfluxDb
             Condition.Requires(cache, "cache").IsNotNull();
             cache.Add(t, this);
 
-            // TODO: t.GetProperties()
+            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
             // Extract public static and instance fields.
-            FieldInfo[] members = t.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-            foreach (FieldInfo member in members)
+            foreach (FieldInfo x in t.GetFields(flags))
             {
-                Func<object, object> get = Getter(t, member);
-                string name = member.GetCustomAttribute<Key>()?.Name ?? Strings.CamelCaseToUnderscores(member.Name);
-
-                // Tags.
-                if (member.GetCustomAttribute<Tag>() != null)
+                if (x.GetCustomAttribute<Tag>() == null)
                 {
-                    _fields.Add((obj, onTag, onField) =>
-                    {
-                        object x = get(obj);
-                        if (x != null) onTag(name, x.ToString());
-                    });
-                    continue;
+                    _fields.Add(FieldExtractor(Name(x), x.FieldType, Getter(x.Name, t, x.FieldType), cache));
                 }
-
-                // Fields.
-                Type fieldType = FieldType(ValueType(member.FieldType));
-                if (fieldType != null)
+                else
                 {
-                    Func<object, Field> make;
-                    {
-                        ParameterExpression obj = E.Parameter(typeof(object), "obj");
-                        E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, member.FieldType), fieldType));
-                        make = E.Lambda<Func<object, Field>>(e, obj).Compile();
-                    }
-                    _fields.Add((obj, onTag, onField) =>
-                    {
-                        object x = get(obj);
-                        if (x != null) onField(name, make(x));
-                    });
-                    continue;
+                    _fields.Add(TagExtractor(Name(x), Getter(x.Name, t, x.FieldType)));
                 }
-
-                // Composite types.
-                MemberExtractor extractor;
-                if (!cache.TryGetValue(ValueType(member.FieldType), out extractor))
+            }
+            // Extract public static and instance properties.
+            foreach (PropertyInfo x in t.GetProperties(flags))
+            {
+                if (!x.CanRead) continue;
+                if (x.GetCustomAttribute<Tag>() == null)
                 {
-                    extractor = new MemberExtractor(ValueType(member.FieldType), cache);
+                    _fields.Add(FieldExtractor(Name(x), x.PropertyType, Getter(x.Name, t, x.PropertyType), cache));
                 }
-                _fields.Add((obj, onTag, onField) =>
+                else
+                {
+                    _fields.Add(TagExtractor(Name(x), Getter(x.Name, t, x.PropertyType)));
+                }
+            }
+        }
+
+        static Action<object, OnTag, OnField> TagExtractor(string name, Func<object, object> get)
+        {
+            return (obj, onTag, onField) =>
+            {
+                object x = get(obj);
+                if (x != null) onTag(name, x.ToString());
+            };
+        }
+
+        static Action<object, OnTag, OnField> FieldExtractor(
+            string name, Type t, Func<object, object> get, Dictionary<Type, MemberExtractor> cache)
+        {
+            // Simple field type.
+            Type field = FieldType(ValueType(t));
+            if (field != null)
+            {
+                Func<object, Field> make;
+                {
+                    ParameterExpression obj = E.Parameter(typeof(object), "obj");
+                    E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field));
+                    make = E.Lambda<Func<object, Field>>(e, obj).Compile();
+                }
+                return (obj, onTag, onField) =>
                 {
                     object x = get(obj);
-                    if (x != null) extractor.Extract(x, onTag, onField);
-                });
+                    if (x != null) onField(name, make(x));
+                };
             }
+
+            // Composite type.
+            MemberExtractor extractor;
+            if (!cache.TryGetValue(ValueType(t), out extractor))
+            {
+                extractor = new MemberExtractor(ValueType(t), cache);
+            }
+            return (obj, onTag, onField) =>
+            {
+                object x = get(obj);
+                if (x != null) extractor.Extract(x, onTag, onField);
+            };
         }
 
         public void Extract(object obj, OnTag onTag, OnField onField)
@@ -100,11 +119,11 @@ namespace InfluxDb
             }
         }
 
-        static Func<object, object> Getter(Type t, FieldInfo member)
+        static Func<object, object> Getter(string name, Type container, Type member)
         {
             ParameterExpression obj = E.Parameter(typeof(object), "obj");
-            E x = E.Field(E.Convert(obj, t), member);
-            if (IsNullable(member.FieldType))
+            E x = E.PropertyOrField(E.Convert(obj, container), name);
+            if (IsNullable(member))
             {
                 x = E.Condition(E.Property(x, "HasValue"), E.Convert(E.Property(x, "Value"), typeof(object)), E.Constant(null));
             }
@@ -113,6 +132,11 @@ namespace InfluxDb
                 x = E.Convert(x, typeof(object));
             }
             return E.Lambda<Func<object, object>>(x, obj).Compile();
+        }
+
+        static string Name(MemberInfo member)
+        {
+            return member.GetCustomAttribute<Key>()?.Name ?? Strings.CamelCaseToUnderscores(member.Name);
         }
 
         static bool IsNullable(Type t)

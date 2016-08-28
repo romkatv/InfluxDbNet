@@ -25,7 +25,7 @@ namespace InfluxDb
         public bool Equals(IEnumerable<T> x, IEnumerable<T> y)
         {
             if (x == null) return y == null;
-            if (y == null) return x == null;
+            if (y == null) return false;
             return x.SequenceEqual(y, _cmp);
         }
 

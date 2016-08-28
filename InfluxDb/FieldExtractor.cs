@@ -14,12 +14,18 @@ namespace InfluxDb
 {
     public class Tag : Attribute { };
 
-    class FieldExtractor
+    public class FieldExtractor
     {
         readonly List<Action<object, OnTag, OnField>> _fields = new List<Action<object, OnTag, OnField>>();
 
-        public FieldExtractor(Type t)
+        public FieldExtractor(Type t) : this(t, new Dictionary<Type, FieldExtractor>()) { }
+
+        FieldExtractor(Type t, Dictionary<Type, FieldExtractor> cache)
         {
+            Condition.Requires(t, "t").IsNotNull();
+            Condition.Requires(cache, "cache").IsNotNull();
+            cache.Add(t, this);
+
             // TODO: t.GetProperties()
             // Extract public static and instance fields.
             FieldInfo[] fields = t.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
@@ -90,17 +96,20 @@ namespace InfluxDb
                     _fields.Add((obj, onTag, onField) => onField(name, Field.New((float)field.GetValue(obj))));
                     continue;
                 }
-                /*
                 if (!IsNullable(field.FieldType))
                 {
-                    var extractor = new FieldExtractor(field.FieldType);
+                    FieldExtractor extractor;
+                    if (!cache.TryGetValue(field.FieldType, out extractor))
+                    {
+                        extractor = new FieldExtractor(field.FieldType, cache);
+                    }
                     _fields.Add((obj, onTag, onField) =>
                     {
                         object f = field.GetValue(obj);
                         if (f != null) extractor.Extract(obj, onTag, onField);
                     });
                     continue;
-                }*/
+                }
             }
         }
 

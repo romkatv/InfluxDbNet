@@ -5,6 +5,11 @@ VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfluxDb", "InfluxDb\InfluxDb.csproj", "{8233A3EE-5769-4E9C-B30D-2005AC3720CE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example", "Example\Example.csproj", "{FEACCDB4-F194-4D2F-9B84-C10A9FE47A0B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8233A3EE-5769-4E9C-B30D-2005AC3720CE} = {8233A3EE-5769-4E9C-B30D-2005AC3720CE}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +20,10 @@ Global
 		{8233A3EE-5769-4E9C-B30D-2005AC3720CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8233A3EE-5769-4E9C-B30D-2005AC3720CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8233A3EE-5769-4E9C-B30D-2005AC3720CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FEACCDB4-F194-4D2F-9B84-C10A9FE47A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FEACCDB4-F194-4D2F-9B84-C10A9FE47A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FEACCDB4-F194-4D2F-9B84-C10A9FE47A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FEACCDB4-F194-4D2F-9B84-C10A9FE47A0B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

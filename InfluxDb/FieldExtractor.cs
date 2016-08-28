@@ -14,6 +14,17 @@ namespace InfluxDb
 {
     public class Tag : Attribute { };
 
+    public class Key : Attribute
+    {
+        public Key(string name)
+        {
+            Condition.Requires(name, "name").IsNotNullOrEmpty();
+            Name = name;
+        }
+
+        public string Name { get; private set; }
+    };
+
     public class FieldExtractor
     {
         readonly List<Action<object, OnTag, OnField>> _fields = new List<Action<object, OnTag, OnField>>();
@@ -31,28 +42,36 @@ namespace InfluxDb
             FieldInfo[] fields = t.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
             foreach (FieldInfo field in fields)
             {
-                // TODO: support overrides via attributes.
-                string name = Strings.CamelCaseToUnderscores(field.Name);
+                string name = field.GetCustomAttribute<Key>()?.Name;
+                if (name == null) name = Strings.CamelCaseToUnderscores(field.Name);
                 if (field.GetCustomAttribute<Tag>() != null)
                 {
                     if (IsNullable(field.FieldType))
                     {
-                        Type v = field.FieldType.GetGenericArguments().First();
-                        ParameterExpression self = Expression.Parameter(v, "this");
-                        Func<object, object> has =
-                            Expression.Lambda<Func<object, object>>(
-                                Expression.Call(self, v.GetProperty("HasValue").GetMethod), self).Compile();
-                        Func<object, object> get =
-                            Expression.Lambda<Func<object, object>>(
-                                Expression.Call(self, v.GetProperty("Value").GetMethod), self).Compile();
+                        ParameterExpression param = Expression.Parameter(typeof(object), "p");
+                        // (object p) => ((Nullable<T>)p).HasValue
+                        Func<object, bool> has =
+                            Expression.Lambda<Func<object, bool>>(
+                                Expression.Call(Expression.Convert(param, field.FieldType),
+                                                field.FieldType.GetProperty("HasValue").GetMethod),
+                                param).Compile();
+                        // (object p) => p.ToString()
+                        Func<object, string> get =
+                            Expression.Lambda<Func<object, string>>(
+                                Expression.Call(param, typeof(object).GetMethod("ToString")),
+                                param).Compile();
                         _fields.Add((obj, onTag, onField) =>
                         {
                             object opt = field.GetValue(obj);
-                            if ((bool)has(opt)) onTag(name, get(opt).ToString());
+                            if (has(opt)) onTag(name, get(opt));
                         });
                         continue;
                     }
-                    _fields.Add((obj, onTag, onField) => onTag(name, field.GetValue(obj).ToString()));
+                    _fields.Add((obj, onTag, onField) =>
+                    {
+                        object f = field.GetValue(obj);
+                        if (f != null) onTag(name, f.ToString());
+                    });
                     continue;
                 }
                 // Native field types.
@@ -106,7 +125,7 @@ namespace InfluxDb
                     _fields.Add((obj, onTag, onField) =>
                     {
                         object f = field.GetValue(obj);
-                        if (f != null) extractor.Extract(obj, onTag, onField);
+                        if (f != null) extractor.Extract(f, onTag, onField);
                     });
                     continue;
                 }

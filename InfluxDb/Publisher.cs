@@ -119,15 +119,57 @@ namespace InfluxDb
         }
     }
 
+    class KeyValueComparer<TKey, TValue> : IEqualityComparer<KeyValuePair<TKey, TValue>>
+    {
+        public bool Equals(KeyValuePair<TKey, TValue> x, KeyValuePair<TKey, TValue> y)
+        {
+            return Eq(x.Key, y.Key) && Eq(x.Value, y.Value);
+        }
+
+        public int GetHashCode(KeyValuePair<TKey, TValue> obj)
+        {
+            return Hash.HashAll(obj.Key, obj.Value);
+        }
+
+        bool Eq<T>(T x, T y)
+        {
+            if (x == null) return y == null;
+            if (y == null) return false;
+            return x.Equals(y);
+        }
+    }
+
+    class PointKeyComparer : IEqualityComparer<Point>
+    {
+        readonly SequenceComparer<KeyValuePair<string, string>> _cmp =
+            new SequenceComparer<KeyValuePair<string, string>>(
+                new KeyValueComparer<string, string>());
+
+        public bool Equals(Point x, Point y)
+        {
+            if (x == null) return y == null;
+            if (y == null) return false;
+            return x.Name == y.Name && _cmp.Equals(x.Tags, y.Tags);
+        }
+
+        public int GetHashCode(Point p)
+        {
+            if (p == null) return 501107580;  // Random number.
+            return Hash.Combine(Hash.HashAll(p.Name), _cmp.GetHashCode(p.Tags));
+        }
+    }
+
     public class Publisher : ISink, IDisposable
     {
         readonly object _monitor = new object();
         readonly IBackend _backend;
         readonly PublisherConfig _cfg;
-        readonly Dictionary<string, PointBuffer> _points = new Dictionary<string, PointBuffer>();
+        readonly Dictionary<Point, PointBuffer> _points =
+            new Dictionary<Point, PointBuffer>(new PointKeyComparer());
         readonly PeriodicAction _send;
         // Value is true if the entry was added before _batch was cut.
-        readonly Dictionary<Reference<Action>, bool> _wake = new Dictionary<Reference<Action>, bool>();
+        readonly Dictionary<Reference<Action>, bool> _wake =
+            new Dictionary<Reference<Action>, bool>();
         List<Point> _batch = null;
 
         public Publisher(IBackend backend, PublisherConfig cfg)
@@ -143,13 +185,14 @@ namespace InfluxDb
 
         public void Write(Point p)
         {
+            Condition.Requires(p, "p").IsNotNull();
             lock (_monitor)
             {
                 PointBuffer buf;
-                if (!_points.TryGetValue(p.Name, out buf))
+                if (!_points.TryGetValue(p, out buf))
                 {
                     buf = new PointBuffer(_cfg.MaxStoredPoints, _cfg.OnFull, _cfg.SamplingPeriod);
-                    _points.Add(p.Name, buf);
+                    _points.Add(p, buf);
                 }
                 buf.Add(p);
                 if (_batch == null && IsFull())

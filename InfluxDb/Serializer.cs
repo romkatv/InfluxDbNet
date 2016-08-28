@@ -80,7 +80,7 @@ namespace InfluxDb
                 (string x) =>
                 {
                     sb.Append('"');
-                    Escape(x, FieldSpecialChars, sb);
+                    Strings.Escape(x, '\\', FieldSpecialChars, sb);
                     sb.Append('"');
                     return null;
                 }
@@ -95,22 +95,7 @@ namespace InfluxDb
 
         static void WriteKey(string key, StringBuilder sb)
         {
-            Escape(key, KeySpecialChars, sb);
-        }
-
-        static void Escape(string s, char[] chars, StringBuilder sb)
-        {
-            int start = 0;
-            while (true)
-            {
-                int next = s.IndexOfAny(chars);
-                if (next < 0) break;
-                sb.Append(s, start, next - start);
-                sb.Append('\\');
-                sb.Append(s[next]);
-                start = next + 1;
-            }
-            sb.Append(s, start, s.Length - start);
+            Strings.Escape(key, '\\', KeySpecialChars, sb);
         }
     }
 }

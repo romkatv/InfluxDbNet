@@ -92,5 +92,14 @@ namespace InfluxDb
             }
             sb.Append(s, start, s.Length - start);
         }
+
+        // Puts the string in double quotes. The existing double quotes are replaced prefixed with backslash.
+        //
+        //   Quote("foo") => "\"foo\""
+        //   Quote("foo\"bar") => "\"foo\\\"bar\""
+        public static string Quote(string s)
+        {
+            return "\"" + s.Replace("\"", "\\\"") + "\"";
+        }
     }
 }

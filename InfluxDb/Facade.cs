@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Conditions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,13 +16,90 @@ namespace InfluxDb
 
     public class Database
     {
-        public Database(ISink sink) { }
-        public Measurement<TColumns> GetMeasurement<TColumns>(string name) { return null; }
-        public IDisposable At(DateTime t) { return null; }
+        readonly object _monitor = new object();
+        readonly AdjustableClock _clock = new AdjustableClock();
+        readonly ISink _sink;
+        // Values are Measurement<TColumns> where TColumns is the second component of the key.
+        readonly Dictionary<Tuple<string, Type>, object> _measurements =
+            new Dictionary<Tuple<string, Type>, object>();
+
+        public Database(ISink sink)
+        {
+            Condition.Requires(sink, "sink").IsNotNull();
+            _sink = sink;
+        }
+
+        public Measurement<TColumns> GetMeasurement<TColumns>(string name)
+        {
+            Condition.Requires(name, "name").IsNotNullOrEmpty();
+            var key = Tuple.Create(name, typeof(TColumns));
+            object res;
+            lock (_monitor)
+            {
+                if (!_measurements.TryGetValue(key, out res))
+                {
+                    res = new Measurement<TColumns>(name, _clock, _sink);
+                    _measurements.Add(key, res);
+                }
+            }
+            return (Measurement<TColumns>)res;
+        }
+
+        public IDisposable At(DateTime t)
+        {
+            return _clock.At(t);
+        }
     }
 
     interface IClock
     {
         DateTime UtcNow { get; }
+    }
+
+    class AdjustableClock : IClock
+    {
+        readonly object _monitor = new object();
+        readonly LinkedList<DateTime> _overrides = new LinkedList<DateTime>();
+
+        class Override : IDisposable
+        {
+            readonly AdjustableClock _clock;
+            readonly LinkedListNode<DateTime> _node;
+
+            public Override(AdjustableClock clock, LinkedListNode<DateTime> node)
+            {
+                Condition.Requires(clock, "clock").IsNotNull();
+                Condition.Requires(node, "node").IsNotNull();
+                _clock = clock;
+                _node = node;
+            }
+
+            public void Dispose()
+            {
+                lock (_clock._monitor)
+                {
+                    _clock._overrides.Remove(_node);
+                }
+            }
+        }
+
+        public IDisposable At(DateTime t)
+        {
+            lock (_monitor)
+            {
+                return new Override(this, _overrides.AddLast(t));
+            }
+        }
+
+        public DateTime UtcNow
+        {
+            get
+            {
+                lock (_monitor)
+                {
+                    return _overrides.Any() ? _overrides.Last.Value : DateTime.UtcNow;
+                }
+            }
+        }
     }
 }

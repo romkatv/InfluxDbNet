@@ -4,11 +4,12 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Conditions;
+using System.Linq.Expressions;
 
 using OnTag = System.Action<string, string>;
 using OnField = System.Action<string, InfluxDb.Field>;
-using Conditions;
-using System.Linq.Expressions;
+using E = System.Linq.Expressions.Expression;
 
 namespace InfluxDb
 {
@@ -48,18 +49,13 @@ namespace InfluxDb
                 {
                     if (IsNullable(field.FieldType))
                     {
-                        ParameterExpression param = Expression.Parameter(typeof(object), "p");
+                        ParameterExpression param = E.Parameter(typeof(object), "p");
                         // (object p) => ((Nullable<T>)p).HasValue
                         Func<object, bool> has =
-                            Expression.Lambda<Func<object, bool>>(
-                                Expression.Call(Expression.Convert(param, field.FieldType),
-                                                field.FieldType.GetProperty("HasValue").GetMethod),
-                                param).Compile();
+                            E.Lambda<Func<object, bool>>(E.Call(E.Convert(param, field.FieldType), "get_HasValue", null), param).Compile();
                         // (object p) => p.ToString()
                         Func<object, string> get =
-                            Expression.Lambda<Func<object, string>>(
-                                Expression.Call(param, typeof(object).GetMethod("ToString")),
-                                param).Compile();
+                            E.Lambda<Func<object, string>>(E.Call(param, "ToString", null), param).Compile();
                         _fields.Add((obj, onTag, onField) =>
                         {
                             object opt = field.GetValue(obj);

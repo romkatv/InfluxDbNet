@@ -123,19 +123,12 @@ namespace InfluxDb
     {
         public bool Equals(KeyValuePair<TKey, TValue> x, KeyValuePair<TKey, TValue> y)
         {
-            return Eq(x.Key, y.Key) && Eq(x.Value, y.Value);
+            return object.Equals(x.Key, y.Key) && object.Equals(x.Value, y.Value);
         }
 
         public int GetHashCode(KeyValuePair<TKey, TValue> obj)
         {
             return Hash.HashAll(obj.Key, obj.Value);
-        }
-
-        bool Eq<T>(T x, T y)
-        {
-            if (x == null) return y == null;
-            if (y == null) return false;
-            return x.Equals(y);
         }
     }
 

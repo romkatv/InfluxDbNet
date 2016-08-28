@@ -15,8 +15,11 @@ namespace InfluxDb
     {
         public string Endpoint { get; set; }
         public string Database { get; set; }
+        // Optional.
         public string RetentionPolicy { get; set; }
+        // Optional.
         public string Username { get; set; }
+        // Optional.
         public string Password { get; set; }
 
         internal string Uri
@@ -64,7 +67,8 @@ namespace InfluxDb
                 HttpResponseMessage resp = await _http.SendAsync(msg, HttpCompletionOption.ResponseContentRead, cancel.Token);
                 string content = await resp.Content.ReadAsStringAsync();
                 int code = (int)resp.StatusCode;
-                string log = string.Format("IN: HTTP {0} ({1}): {2}", (int)resp.StatusCode, resp.StatusCode, content);
+                string log = string.Format("IN: HTTP {0} {1} ({2}): {3}",
+                                           _http.BaseAddress, (int)resp.StatusCode, resp.StatusCode, content);
                 if (code < 200 || code >= 300)
                 {
                     _log.Warn("{0}", log);

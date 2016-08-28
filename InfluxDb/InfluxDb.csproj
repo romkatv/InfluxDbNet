@@ -52,6 +52,7 @@
     <Compile Include="Backend.cs" />
     <Compile Include="Deque.cs" />
     <Compile Include="Facade.cs" />
+    <Compile Include="FieldExtractor.cs" />
     <Compile Include="Hash.cs" />
     <Compile Include="PeriodicAction.cs" />
     <Compile Include="PriorityQueue.cs" />
@@ -63,6 +64,7 @@
     <Compile Include="Scheduler.cs" />
     <Compile Include="SequenceComparer.cs" />
     <Compile Include="Serializer.cs" />
+    <Compile Include="Strings.cs" />
     <Compile Include="Synchronized.cs" />
     <Compile Include="Types.cs" />
     <Compile Include="Variant.cs" />

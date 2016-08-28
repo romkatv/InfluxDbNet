@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,9 +10,35 @@ namespace InfluxDb
 {
     public class Measurement<TColumns>
     {
-        internal Measurement(string name, IClock clock, ISink sink) { }
-        public void Report(TColumns cols) { }
-        public void Report(TColumns cols, DateTime t) { }
+        readonly string _name;
+        readonly IClock _clock;
+        readonly ISink _sink;
+
+        internal Measurement(string name, IClock clock, ISink sink)
+        {
+            Condition.Requires(name, "name").IsNotNullOrEmpty();
+            Condition.Requires(clock, "clock").IsNotNull();
+            Condition.Requires(sink, "sink").IsNotNull();
+            _name = name;
+            _clock = clock;
+            _sink = sink;
+        }
+
+        public void Report(TColumns cols)
+        {
+            Report(cols, _clock.UtcNow);
+        }
+
+        public void Report(TColumns cols, DateTime t)
+        {
+            var p = new Point()
+            {
+                Name = _name,
+                Timestamp = t,
+                // TODO
+            };
+            _sink.Write(p);
+        }
     }
 
     public class Database

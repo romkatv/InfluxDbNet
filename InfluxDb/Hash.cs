@@ -9,7 +9,7 @@ namespace InfluxDb
         /// <summary>
         /// Combines two hashes into a single hash.
         /// </summary>
-        static int Combine(int seed, int val)
+        public static int Combine(int seed, int val)
         {
             // Based on boost::hash_combine (http://www.boost.org/doc/libs/1_35_0/doc/html/hash/combine.html),
             // which is based on http://www.cs.rmit.edu.au/~jz/fulltext/jasist-tch.pdf.
@@ -24,7 +24,7 @@ namespace InfluxDb
         /// <summary>
         /// Returns a hash of the value combined with the seed. The value may be null.
         /// </summary>
-        public static int HashWithSeed(int seed, object val)
+        public static int HashWithSeed<T>(int seed, T val)
         {
             return Combine(seed, HashAll(val));
         }
@@ -32,7 +32,7 @@ namespace InfluxDb
         /// <summary>
         /// Returns a combined hash of all arguments. The arguments may be null.
         /// </summary>
-        public static int HashAll(object a)
+        public static int HashAll<T>(T a)
         {
             if (a == null) return 73388878;  // Random number.
             return a.GetHashCode();
@@ -41,7 +41,7 @@ namespace InfluxDb
         /// <summary>
         /// Returns a combined hash of all arguments. The arguments may be null.
         /// </summary>
-        public static int HashAll(object a, object b)
+        public static int HashAll<T1, T2>(T1 a, T2 b)
         {
             return HashWithSeed(HashAll(a), b);
         }
@@ -49,7 +49,7 @@ namespace InfluxDb
         /// <summary>
         /// Returns a combined hash of all arguments. The arguments may be null.
         /// </summary>
-        public static int HashAll(object a, object b, object c)
+        public static int HashAll<T1, T2, T3>(T1 a, T2 b, T3 c)
         {
             return HashWithSeed(HashAll(a, b), c);
         }

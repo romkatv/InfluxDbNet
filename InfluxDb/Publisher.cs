@@ -17,15 +17,30 @@ namespace InfluxDb
 
     public class PublisherConfig
     {
+        // Downsample data on the fly by dropping points with the same key
+        // that are close to each other in time.
         // Zero means no downsampling.
         public TimeSpan SamplingPeriod { get; set; }
+
+        // Store at most this many points in memory per key. When the buffer fills up,
+        // try to flush. If we are already flushing but there are still to many points,
+        // do what OnFull says.
         // Negative means infinity.
-        public int MaxStoredPoints { get; set; }
+        public int MaxPointsPerSeries { get; set; }
+
+        // Send at most this many points per HTTP POST request to InfluxDb.
         // Negative means infinity.
         public int MaxPointsPerBatch { get; set; }
+
+        // See MaxPointsPerSeries.
         public OnFull OnFull { get; set; }
+
+        // Send data to InfluxDb at least once every so often.
         public TimeSpan SendPeriod { get; set; }
+
+        // Timeout for HTTP POST requests to InfluxDb.
         public TimeSpan SendTimeout { get; set; }
+
         // null is legal.
         public Scheduler Scheduler { get; set; }
 
@@ -184,7 +199,7 @@ namespace InfluxDb
                 PointBuffer buf;
                 if (!_points.TryGetValue(p, out buf))
                 {
-                    buf = new PointBuffer(_cfg.MaxStoredPoints, _cfg.OnFull, _cfg.SamplingPeriod);
+                    buf = new PointBuffer(_cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod);
                     _points.Add(p, buf);
                 }
                 buf.Add(p);

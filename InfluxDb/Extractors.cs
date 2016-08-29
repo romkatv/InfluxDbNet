@@ -16,7 +16,7 @@ namespace InfluxDb
     static class MeasurementExtractor<T>
     {
         public static readonly string Name =
-            typeof(T).GetCustomAttribute<Measurement>()?.Name ??
+            typeof(T).GetCustomAttribute<Name>()?.Value ??
             Strings.CamelCaseToUnderscores(typeof(T).Name).ToLower();
     }
 
@@ -169,7 +169,7 @@ namespace InfluxDb
 
         static string Name(MemberInfo member)
         {
-            return member.GetCustomAttribute<Key>()?.Name ??
+            return member.GetCustomAttribute<Name>()?.Value ??
                 Strings.CamelCaseToUnderscores(member.Name).ToLower();
         }
 

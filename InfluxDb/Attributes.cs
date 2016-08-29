@@ -9,25 +9,14 @@ namespace InfluxDb
 {
     public class Tag : Attribute { };
 
-    public class Key : Attribute
+    public class Name : Attribute
     {
-        public Key(string name)
+        public Name(string name)
         {
             Condition.Requires(name, "name").IsNotNullOrEmpty();
-            Name = name;
+            Value = name;
         }
 
-        public string Name { get; private set; }
-    };
-
-    public class Measurement : Attribute
-    {
-        public Measurement(string name)
-        {
-            Condition.Requires(name, "name").IsNotNullOrEmpty();
-            Name = name;
-        }
-
-        public string Name { get; private set; }
+        public string Value { get; private set; }
     };
 }

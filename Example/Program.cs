@@ -39,10 +39,10 @@ namespace Example
         public OrderBook OrderBook { get; set; }
     }
 
-    [Measurement("trades")]
+    [Name("trades")]
     class TradeData
     {
-        [Key("realized_pnl")]
+        [Name("realized_pnl")]
         public double RealizedPnL { get; set; }
     }
 

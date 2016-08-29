@@ -8,11 +8,28 @@ namespace InfluxDb
 {
     public static class Timeseries
     {
-        public static void Push<TColumns>(string name, TColumns cols) { }
-        public static void Push<TColumns>(string name, TColumns cols, DateTime t) { }
-        public static IDisposable At(DateTime t) { return null; }
+        static readonly ReplaceableSink _sink = new ReplaceableSink(null);
+        static readonly Facade _facade = new Facade(_sink);
 
-        public static void SetSink(ISink sink) { }
+        public static void Push<TColumns>(string name, TColumns cols)
+        {
+            _facade.Push(name, cols);
+        }
+
+        public static void Push<TColumns>(string name, TColumns cols, DateTime t)
+        {
+            _facade.Push(name, cols, t);
+        }
+
+        public static IDisposable At(DateTime t)
+        {
+            return _facade.At(t);
+        }
+
+        public static void SetSink(ISink sink)
+        {
+            _sink.SetSink(sink);
+        }
     }
 
     class ReplaceableSink : ISink

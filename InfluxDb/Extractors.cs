@@ -95,6 +95,7 @@ namespace InfluxDb
             }
 
             // Composite type.
+            if (ValueType(t).IsPrimitive) throw new Exception("Unsupported type: " + t.Name);
             MemberExtractor extractor;
             if (!cache.TryGetValue(ValueType(t), out extractor))
             {
@@ -189,7 +190,9 @@ namespace InfluxDb
             {
                 return f;
             }
-            if (f == typeof(short) || f == typeof(int))
+            if (f == typeof(byte) || f == typeof(sbyte) ||
+                f == typeof(short) || f == typeof(ushort) ||
+                f == typeof(int) || f == typeof(uint))
             {
                 return typeof(long);
             }

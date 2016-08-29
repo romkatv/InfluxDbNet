@@ -34,7 +34,7 @@ namespace InfluxDb
             Condition.Requires(cache, "cache").IsNotNull();
             cache.Add(t, this);
 
-            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
+            var flags = BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
             // Extract public static and instance fields.
             foreach (FieldInfo x in t.GetFields(flags))
             {
@@ -118,7 +118,22 @@ namespace InfluxDb
         static Func<object, object> Getter(string name, Type container, Type member)
         {
             ParameterExpression obj = E.Parameter(typeof(object), "obj");
-            E x = E.PropertyOrField(E.Convert(obj, container), name);
+            BindingFlags flags = Flags(container, name);
+            E x;
+            if (flags.HasFlag(BindingFlags.Instance))
+            {
+                // E.PropertyOrField() doesn't work for static properties and fields.
+                x = E.PropertyOrField(E.Convert(obj, container), name);
+            }
+            else if (flags.HasFlag(BindingFlags.GetField))
+            {
+                x = E.Field(null, container, name);
+            }
+            else
+            {
+                Condition.Requires(flags.HasFlag(BindingFlags.GetProperty)).IsTrue();
+                x = E.Property(null, container, name);
+            }
             if (IsNullable(member))
             {
                 x = E.Condition(E.Property(x, "HasValue"), E.Convert(E.Property(x, "Value"), typeof(object)), E.Constant(null));
@@ -128,6 +143,22 @@ namespace InfluxDb
                 x = E.Convert(x, typeof(object));
             }
             return E.Lambda<Func<object, object>>(x, obj).Compile();
+        }
+
+        static BindingFlags Flags(Type t, string name)
+        {
+            foreach (var f in new[] { BindingFlags.Instance, BindingFlags.Static })
+            {
+                MemberInfo[] m = t.GetMember(name, BindingFlags.FlattenHierarchy | BindingFlags.Public | f);
+                if (m != null && m.Length > 0)
+                {
+                    Condition.Requires(m.Length, "m.Length").IsEqualTo(1);
+                    if (m[0].MemberType == MemberTypes.Field) return f | BindingFlags.GetField;
+                    if (m[0].MemberType == MemberTypes.Property) return f | BindingFlags.GetProperty;
+                    throw new Exception("Unexpected member type: " + m[0].MemberType);
+                }
+            }
+            throw new Exception(t.Name + " doesn't have member " + name);
         }
 
         static string Name(MemberInfo member)

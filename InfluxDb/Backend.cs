@@ -50,7 +50,7 @@ namespace InfluxDb
         static readonly Logger _log = LogManager.GetCurrentClassLogger();
         readonly HttpClient _http;
 
-        public RestBackend(Instance instance, TimeSpan timeout)
+        public RestBackend(Instance instance)
         {
             _http = new HttpClient();
             _http.Timeout = TimeSpan.FromMilliseconds(-1);

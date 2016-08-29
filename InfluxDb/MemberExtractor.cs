@@ -28,7 +28,9 @@ namespace InfluxDb
 
     class MemberExtractor
     {
-        readonly List<Action<object, OnTag, OnField>> _fields = new List<Action<object, OnTag, OnField>>();
+        // Composite extractors are at the front.
+        readonly Nito.Deque<Action<object, OnTag, OnField>> _extractors =
+            new Nito.Deque<Action<object, OnTag, OnField>>();
 
         public MemberExtractor(Type t) : this(t, new Dictionary<Type, MemberExtractor>()) { }
 
@@ -44,11 +46,11 @@ namespace InfluxDb
             {
                 if (x.GetCustomAttribute<Tag>() == null)
                 {
-                    _fields.Add(FieldExtractor(Name(x), x.FieldType, Getter(x.Name, t, x.FieldType), cache));
+                    AddFieldExtractor(Name(x), x.FieldType, Getter(x.Name, t, x.FieldType), cache);
                 }
                 else
                 {
-                    _fields.Add(TagExtractor(Name(x), Getter(x.Name, t, x.FieldType)));
+                    AddTagExtractor(Name(x), Getter(x.Name, t, x.FieldType));
                 }
             }
             // Extract public static and instance properties.
@@ -57,26 +59,25 @@ namespace InfluxDb
                 if (!x.CanRead) continue;
                 if (x.GetCustomAttribute<Tag>() == null)
                 {
-                    _fields.Add(FieldExtractor(Name(x), x.PropertyType, Getter(x.Name, t, x.PropertyType), cache));
+                    AddFieldExtractor(Name(x), x.PropertyType, Getter(x.Name, t, x.PropertyType), cache);
                 }
                 else
                 {
-                    _fields.Add(TagExtractor(Name(x), Getter(x.Name, t, x.PropertyType)));
+                    AddTagExtractor(Name(x), Getter(x.Name, t, x.PropertyType));
                 }
             }
         }
 
-        static Action<object, OnTag, OnField> TagExtractor(string name, Func<object, object> get)
+        void AddTagExtractor(string name, Func<object, object> get)
         {
-            return (obj, onTag, onField) =>
+            _extractors.AddToBack((obj, onTag, onField) =>
             {
                 object x = get(obj);
                 if (x != null) onTag(name, x.ToString());
-            };
+            });
         }
 
-        static Action<object, OnTag, OnField> FieldExtractor(
-            string name, Type t, Func<object, object> get, Dictionary<Type, MemberExtractor> cache)
+        void AddFieldExtractor(string name, Type t, Func<object, object> get, Dictionary<Type, MemberExtractor> cache)
         {
             // Simple field type.
             Type field = FieldType(ValueType(t));
@@ -88,11 +89,11 @@ namespace InfluxDb
                     E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field));
                     make = E.Lambda<Func<object, Field>>(e, obj).Compile();
                 }
-                return (obj, onTag, onField) =>
+                _extractors.AddToBack((obj, onTag, onField) =>
                 {
                     object x = get(obj);
                     if (x != null) onField(name, make(x));
-                };
+                });
             }
 
             // Composite type.
@@ -101,11 +102,11 @@ namespace InfluxDb
             {
                 extractor = new MemberExtractor(ValueType(t), cache);
             }
-            return (obj, onTag, onField) =>
+            _extractors.AddToFront((obj, onTag, onField) =>
             {
                 object x = get(obj);
                 if (x != null) extractor.Extract(x, onTag, onField);
-            };
+            });
         }
 
         public void Extract(object obj, OnTag onTag, OnField onField)
@@ -113,7 +114,7 @@ namespace InfluxDb
             Condition.Requires(obj, "obj").IsNotNull();
             Condition.Requires(onTag, "onTag").IsNotNull();
             Condition.Requires(onField, "onField").IsNotNull();
-            foreach (var f in _fields)
+            foreach (var f in _extractors)
             {
                 f(obj, onTag, onField);
             }

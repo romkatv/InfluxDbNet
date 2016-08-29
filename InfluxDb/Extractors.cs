@@ -15,19 +15,8 @@ namespace InfluxDb
 {
     static class MeasurementExtractor<T>
     {
-        public static readonly string Name;
-
-        static MeasurementExtractor()
-        {
-            var attr = typeof(T).GetCustomAttribute<Measurement>();
-            if (attr == null)
-            {
-                throw new Exception(
-                    "Either specify measurement explicitly in Push() " +
-                    "or add Measurement attribute to " + typeof(T).Name);
-            }
-            Name = attr.Name;
-        }
+        public static readonly string Name =
+            typeof(T).GetCustomAttribute<Measurement>()?.Name ?? Strings.CamelCaseToUnderscores(typeof(T).Name);
     }
 
     class MemberExtractor
@@ -98,6 +87,7 @@ namespace InfluxDb
                     object x = get(obj);
                     if (x != null) onField(name, make(x));
                 });
+                return;
             }
 
             // Composite type.

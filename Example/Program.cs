@@ -69,6 +69,7 @@ namespace Example
             using (var pub = new Publisher(backend, cfg))
             {
                 Timeseries.SetSink(pub);
+
                 using (Timeseries.At(new DateTime(2016, 8, 29, 11, 53, 6, DateTimeKind.Utc)))
                 using (Timeseries.With(new Common() { Exchange = "Coinbase", Product = "BTCUSD", Position = 42.0 }))
                 {
@@ -79,6 +80,7 @@ namespace Example
                     });
                     Timeseries.Push(new TradeData() { RealizedPnL = 1337 });
                 }
+
                 try
                 {
                     // HTTP POST http://localhost:8086/write?precision=u&db=finance

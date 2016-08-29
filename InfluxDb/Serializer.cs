@@ -45,6 +45,7 @@ namespace InfluxDb
                 else sb.Append(',');
 
                 WriteKey(kv.Key, sb);
+                sb.Append('=');
                 WriteField(kv.Value, sb);
             }
 

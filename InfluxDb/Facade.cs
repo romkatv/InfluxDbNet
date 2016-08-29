@@ -12,17 +12,6 @@ using Fields = System.Collections.Generic.SortedDictionary<string, InfluxDb.Fiel
 
 namespace InfluxDb
 {
-    public class Measurement : Attribute
-    {
-        public Measurement(string name)
-        {
-            Condition.Requires(name, "name").IsNotNullOrEmpty();
-            Name = name;
-        }
-
-        public string Name { get; private set; }
-    };
-
     public class Facade
     {
         readonly Overrides _overrides = new Overrides();

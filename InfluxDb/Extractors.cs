@@ -13,19 +13,6 @@ using E = System.Linq.Expressions.Expression;
 
 namespace InfluxDb
 {
-    public class Tag : Attribute { };
-
-    public class Key : Attribute
-    {
-        public Key(string name)
-        {
-            Condition.Requires(name, "name").IsNotNullOrEmpty();
-            Name = name;
-        }
-
-        public string Name { get; private set; }
-    };
-
     static class MeasurementExtractor<T>
     {
         public static readonly string Name;

@@ -49,6 +49,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Attributes.cs" />
     <Compile Include="Backend.cs" />
     <Compile Include="Deque.cs" />
     <Compile Include="Facade.cs" />

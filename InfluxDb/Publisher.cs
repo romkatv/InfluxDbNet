@@ -225,11 +225,14 @@ namespace InfluxDb
             Condition.Requires(_batch, "_batch").IsNull();
             Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
             _batch = new List<Point>();
-            foreach (PointBuffer buf in _points.Values)
+            var empty = new List<Point>();
+            foreach (var kv in _points)
             {
-                buf.ConsumeAppendOldest(
+                kv.Value.ConsumeAppendOldest(
                     _cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
+                if (kv.Value.Count == 0) empty.Add(kv.Key);
             }
+            foreach (Point key in empty) _points.Remove(key);
             foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
         }
 

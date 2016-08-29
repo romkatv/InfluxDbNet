@@ -26,6 +26,23 @@ namespace InfluxDb
         public string Name { get; private set; }
     };
 
+    static class MeasurementExtractor<T>
+    {
+        public static readonly string Name;
+
+        static MeasurementExtractor()
+        {
+            var attr = typeof(T).GetCustomAttribute<Measurement>();
+            if (attr == null)
+            {
+                throw new Exception(
+                    "Either specify measurement explicitly in Push() " +
+                    "or add Measurement attribute to " + typeof(T).Name);
+            }
+            Name = attr.Name;
+        }
+    }
+
     class MemberExtractor
     {
         // Composite extractors are at the front.

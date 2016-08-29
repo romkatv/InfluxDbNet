@@ -12,6 +12,17 @@ using Fields = System.Collections.Generic.SortedDictionary<string, InfluxDb.Fiel
 
 namespace InfluxDb
 {
+    public class Measurement : Attribute
+    {
+        public Measurement(string name)
+        {
+            Condition.Requires(name, "name").IsNotNullOrEmpty();
+            Name = name;
+        }
+
+        public string Name { get; private set; }
+    };
+
     public class Facade
     {
         readonly Overrides _overrides = new Overrides();
@@ -40,6 +51,16 @@ namespace InfluxDb
                 Fields = data.Fields,
             };
             _sink.Push(p);
+        }
+
+        public void Push<TColumns>(TColumns cols)
+        {
+            Push(MeasurementExtractor<TColumns>.Name, cols);
+        }
+
+        public void Push<TColumns>(TColumns cols, DateTime t)
+        {
+            Push(MeasurementExtractor<TColumns>.Name, cols, t);
         }
 
         public IDisposable At(DateTime t)

@@ -21,9 +21,29 @@ namespace InfluxDb
             _facade.Push(name, cols, t);
         }
 
+        public static void Push<TColumns>(TColumns cols)
+        {
+            _facade.Push(cols);
+        }
+
+        public static void Push<TColumns>(TColumns cols, DateTime t)
+        {
+            _facade.Push(cols, t);
+        }
+
         public static IDisposable At(DateTime t)
         {
             return _facade.At(t);
+        }
+
+        public static IDisposable With<TColumns>(DateTime t, TColumns cols)
+        {
+            return _facade.With(t, cols);
+        }
+
+        public static IDisposable With<TColumns>(TColumns cols)
+        {
+            return _facade.With(cols);
         }
 
         public static void SetSink(ISink sink)

@@ -11,8 +11,6 @@ namespace InfluxDb
 {
     public class Facade
     {
-        static readonly Logger _log = LogManager.GetCurrentClassLogger();
-
         readonly AdjustableClock _clock = new AdjustableClock();
         readonly ISink _sink;
 
@@ -39,24 +37,8 @@ namespace InfluxDb
             MemberExtractor<TColumns>.Instance.Extract
             (
                 cols,
-                (key, val) =>
-                {
-                    if (p.Tags.ContainsKey(key))
-                    {
-                        _log.Warn("Duplicate tag name {0} in {1}", key, typeof(TColumns).Name);
-                        return;
-                    }
-                    p.Tags.Add(key, val);
-                },
-                (key, val) =>
-                {
-                    if (p.Fields.ContainsKey(key))
-                    {
-                        _log.Warn("Duplicate field name {0} in {1}", key, typeof(TColumns).Name);
-                        return;
-                    }
-                    p.Fields.Add(key, val);
-                }
+                (key, val) => p.Tags[key] = val,   // the last value wins
+                (key, val) => p.Fields[key] = val  // the last value wins
             );
             _sink.Push(p);
         }

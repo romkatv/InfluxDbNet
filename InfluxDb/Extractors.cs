@@ -22,9 +22,12 @@ namespace InfluxDb
 
     class MemberExtractor
     {
-        // Composite extractors are at the front.
-        readonly Nito.Deque<Action<object, OnTag, OnField>> _extractors =
-            new Nito.Deque<Action<object, OnTag, OnField>>();
+        // Composite extractors are at [0].
+        // Simple extractors are at [1].
+        readonly List<Action<object, OnTag, OnField>>[] _extractors = new [] {
+            new List<Action<object, OnTag, OnField>>(),
+            new List<Action<object, OnTag, OnField>>()
+        };
 
         public MemberExtractor(Type t) : this(t, new Dictionary<Type, MemberExtractor>()) { }
 
@@ -64,7 +67,7 @@ namespace InfluxDb
 
         void AddTagExtractor(string name, Func<object, object> get)
         {
-            _extractors.AddToBack((obj, onTag, onField) =>
+            _extractors[1].Add((obj, onTag, onField) =>
             {
                 object x = get(obj);
                 if (x != null) onTag(name, x.ToString());
@@ -83,7 +86,7 @@ namespace InfluxDb
                     E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field));
                     make = E.Lambda<Func<object, Field>>(e, obj).Compile();
                 }
-                _extractors.AddToBack((obj, onTag, onField) =>
+                _extractors[1].Add((obj, onTag, onField) =>
                 {
                     object x = get(obj);
                     if (x != null) onField(name, make(x));
@@ -97,7 +100,7 @@ namespace InfluxDb
             {
                 extractor = new MemberExtractor(ValueType(t), cache);
             }
-            _extractors.AddToFront((obj, onTag, onField) =>
+            _extractors[0].Add((obj, onTag, onField) =>
             {
                 object x = get(obj);
                 if (x != null) extractor.Extract(x, onTag, onField);
@@ -109,9 +112,12 @@ namespace InfluxDb
             Condition.Requires(obj, "obj").IsNotNull();
             Condition.Requires(onTag, "onTag").IsNotNull();
             Condition.Requires(onField, "onField").IsNotNull();
-            foreach (var f in _extractors)
+            foreach (var x in _extractors)
             {
-                f(obj, onTag, onField);
+                foreach (var y in x)
+                {
+                    y(obj, onTag, onField);
+                }
             }
         }
 

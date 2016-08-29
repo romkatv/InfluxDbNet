@@ -176,7 +176,7 @@ namespace InfluxDb
             _send.Schedule(DateTime.UtcNow + _cfg.SendPeriod);
         }
 
-        public void Write(Point p)
+        public void Push(Point p)
         {
             Condition.Requires(p, "p").IsNotNull();
             lock (_monitor)

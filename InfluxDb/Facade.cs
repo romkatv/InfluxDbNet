@@ -9,25 +9,25 @@ using System.Threading.Tasks;
 
 namespace InfluxDb
 {
-    public class Database
+    public class Facade
     {
         static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
         readonly AdjustableClock _clock = new AdjustableClock();
         readonly ISink _sink;
 
-        public Database(ISink sink)
+        public Facade(ISink sink)
         {
             Condition.Requires(sink, "sink").IsNotNull();
             _sink = sink;
         }
 
-        public void Report<TColumns>(string name, TColumns cols)
+        public void Push<TColumns>(string name, TColumns cols)
         {
-            Report(name, cols, _clock.UtcNow);
+            Push(name, cols, _clock.UtcNow);
         }
 
-        public void Report<TColumns>(string name, TColumns cols, DateTime t)
+        public void Push<TColumns>(string name, TColumns cols, DateTime t)
         {
             var p = new Point()
             {
@@ -58,7 +58,7 @@ namespace InfluxDb
                     p.Fields.Add(key, val);
                 }
             );
-            _sink.Write(p);
+            _sink.Push(p);
         }
 
         public IDisposable At(DateTime t)

@@ -121,7 +121,7 @@ namespace InfluxDb
 
     public interface ISink
     {
-        void Write(Point p);
+        void Push(Point p);
     }
 
     public interface IBackend

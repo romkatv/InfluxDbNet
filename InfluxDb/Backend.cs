@@ -29,6 +29,8 @@ namespace InfluxDb
                 Condition.Requires(Endpoint, "Endpoint").IsNotNullOrEmpty();
                 Condition.Requires(Database, "Database").IsNotNullOrEmpty();
                 var uri = new StringBuilder(Endpoint);
+                if (!Endpoint.EndsWith("/")) uri.Append('/');
+                uri.Append("write");
                 uri.Append("?precision=u");  // timestamps are in microseconds
                 Action<string, string> AddQueryParam = (name, value) =>
                 {

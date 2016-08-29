@@ -26,7 +26,7 @@ namespace InfluxDb
         public string Name { get; private set; }
     };
 
-    public class MemberExtractor
+    class MemberExtractor
     {
         readonly List<Action<object, OnTag, OnField>> _fields = new List<Action<object, OnTag, OnField>>();
 
@@ -165,5 +165,10 @@ namespace InfluxDb
             }
             return null;
         }
+    }
+
+    static class MemberExtractor<TColumns>
+    {
+        public static readonly MemberExtractor Instance = new MemberExtractor(typeof(TColumns));
     }
 }

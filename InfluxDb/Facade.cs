@@ -9,40 +9,34 @@ using System.Threading.Tasks;
 
 namespace InfluxDb
 {
-    public class Measurement<TColumns>
+    public class Database
     {
         static readonly Logger _log = LogManager.GetCurrentClassLogger();
-        readonly static MemberExtractor _extractor = new MemberExtractor(typeof(TColumns));
 
-        readonly string _name;
-        readonly IClock _clock;
+        readonly AdjustableClock _clock = new AdjustableClock();
         readonly ISink _sink;
 
-        internal Measurement(string name, IClock clock, ISink sink)
+        public Database(ISink sink)
         {
-            Condition.Requires(name, "name").IsNotNullOrEmpty();
-            Condition.Requires(clock, "clock").IsNotNull();
             Condition.Requires(sink, "sink").IsNotNull();
-            _name = name;
-            _clock = clock;
             _sink = sink;
         }
 
-        public void Report(TColumns cols)
+        public void Report<TColumns>(string name, TColumns cols)
         {
-            Report(cols, _clock.UtcNow);
+            Report(name, cols, _clock.UtcNow);
         }
 
-        public void Report(TColumns cols, DateTime t)
+        public void Report<TColumns>(string name, TColumns cols, DateTime t)
         {
             var p = new Point()
             {
-                Name = _name,
+                Name = name,
                 Timestamp = t,
                 Tags = new SortedDictionary<string, string>(),
                 Fields = new SortedDictionary<string, Field>(),
             };
-            _extractor.Extract
+            MemberExtractor<TColumns>.Instance.Extract
             (
                 cols,
                 (key, val) =>
@@ -65,38 +59,6 @@ namespace InfluxDb
                 }
             );
             _sink.Write(p);
-        }
-    }
-
-    public class Database
-    {
-        readonly object _monitor = new object();
-        readonly AdjustableClock _clock = new AdjustableClock();
-        readonly ISink _sink;
-        // Values are Measurement<TColumns> where TColumns is the second component of the key.
-        readonly Dictionary<Tuple<string, Type>, object> _measurements =
-            new Dictionary<Tuple<string, Type>, object>();
-
-        public Database(ISink sink)
-        {
-            Condition.Requires(sink, "sink").IsNotNull();
-            _sink = sink;
-        }
-
-        public Measurement<TColumns> GetMeasurement<TColumns>(string name)
-        {
-            Condition.Requires(name, "name").IsNotNullOrEmpty();
-            var key = Tuple.Create(name, typeof(TColumns));
-            object res;
-            lock (_monitor)
-            {
-                if (!_measurements.TryGetValue(key, out res))
-                {
-                    res = new Measurement<TColumns>(name, _clock, _sink);
-                    _measurements.Add(key, res);
-                }
-            }
-            return (Measurement<TColumns>)res;
         }
 
         public IDisposable At(DateTime t)

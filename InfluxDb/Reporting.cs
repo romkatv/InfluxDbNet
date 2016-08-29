@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 
 namespace InfluxDb
 {
+    // TODO: figure out a better name for this class and for `Report`.
     public static class Reporting
     {
-        public static Measurement<TColumns> GetMeasurement<TColumns>(string name) { return null; }
+        public static void Report<TColumns>(string name, TColumns cols) { }
+        public static void Report<TColumns>(string name, TColumns cols, DateTime t) { }
         public static IDisposable At(DateTime t) { return null; }
 
-        static void SetSink(ISink sink) { }
+        public static void SetSink(ISink sink) { }
     }
 
     class ReplaceableSink : ISink

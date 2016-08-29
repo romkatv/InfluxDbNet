@@ -7,11 +7,14 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
+using Tags = System.Collections.Generic.SortedDictionary<string, string>;
+using Fields = System.Collections.Generic.SortedDictionary<string, InfluxDb.Field>;
+
 namespace InfluxDb
 {
     public class Facade
     {
-        readonly AdjustableClock _clock = new AdjustableClock();
+        readonly Overrides _overrides = new Overrides();
         readonly ISink _sink;
 
         public Facade(ISink sink)
@@ -22,70 +25,128 @@ namespace InfluxDb
 
         public void Push<TColumns>(string name, TColumns cols)
         {
-            Push(name, cols, _clock.UtcNow);
+            Push(name, cols, _overrides.UtcNow);
         }
 
         public void Push<TColumns>(string name, TColumns cols, DateTime t)
         {
+            TagsAndFields data = _overrides.TagsAndFields();
+            Extract(cols, ref data.Tags, ref data.Fields);
             var p = new Point()
             {
                 Name = name,
                 Timestamp = t,
-                Tags = new SortedDictionary<string, string>(),
-                Fields = new SortedDictionary<string, Field>(),
+                Tags = data.Tags,
+                Fields = data.Fields,
             };
-            MemberExtractor<TColumns>.Instance.Extract
-            (
-                cols,
-                (key, val) => p.Tags[key] = val,   // the last value wins
-                (key, val) => p.Fields[key] = val  // the last value wins
-            );
             _sink.Push(p);
         }
 
         public IDisposable At(DateTime t)
         {
-            return _clock.At(t);
+            return _overrides.Push(t, null);
+        }
+
+        public IDisposable With<TColumns>(DateTime t, TColumns cols)
+        {
+            var data = new TagsAndFields();
+            Extract(cols, ref data.Tags, ref data.Fields);
+            return _overrides.Push(t, data);
+        }
+
+        public IDisposable With<TColumns>(TColumns cols)
+        {
+            var data = new TagsAndFields();
+            Extract(cols, ref data.Tags, ref data.Fields);
+            return _overrides.Push(null, data);
+        }
+
+        static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)
+        {
+            tags = tags ?? new Tags();
+            fields = fields ?? new Fields();
+            var t = tags;
+            var f = fields;
+            MemberExtractor<TColumns>.Instance.Extract
+            (
+                cols,
+                (key, val) => t[key] = val,  // the last value wins
+                (key, val) => f[key] = val   // the last value wins
+            );
         }
     }
 
-    interface IClock
+    class TagsAndFields
     {
-        DateTime UtcNow { get; }
+        public Tags Tags;
+        public Fields Fields;
+
+        public void MergeFrom(TagsAndFields other)
+        {
+            if (other == null) return;
+            if (other.Tags != null)
+            {
+                Tags = Tags ?? new Tags();
+                MergeFrom(Tags, other.Tags);
+            }
+            if (other.Fields != null)
+            {
+                Fields = Fields ?? new Fields();
+                MergeFrom(Fields, other.Fields);
+            }
+        }
+
+        // The left argument is mutated.
+        // The right argument wins in case of key conflicts.
+        static void MergeFrom<TKey, TValue>(SortedDictionary<TKey, TValue> x, SortedDictionary<TKey, TValue> y)
+        {
+            foreach (var kv in y)
+            {
+                x[kv.Key] = kv.Value;
+            }
+        }
     }
 
-    class AdjustableClock : IClock
+    class Overrides
     {
         readonly object _monitor = new object();
-        readonly LinkedList<DateTime> _overrides = new LinkedList<DateTime>();
+        readonly LinkedList<DateTime> _time = new LinkedList<DateTime>();
+        readonly LinkedList<TagsAndFields> _data = new LinkedList<TagsAndFields>();
 
         class Override : IDisposable
         {
-            readonly AdjustableClock _clock;
-            readonly LinkedListNode<DateTime> _node;
+            readonly Overrides _outer;
+            readonly LinkedListNode<DateTime> _time;
+            readonly LinkedListNode<TagsAndFields> _data;
 
-            public Override(AdjustableClock clock, LinkedListNode<DateTime> node)
+            public Override(Overrides clock, LinkedListNode<DateTime> time, LinkedListNode<TagsAndFields> data)
             {
                 Condition.Requires(clock, "clock").IsNotNull();
-                Condition.Requires(node, "node").IsNotNull();
-                _clock = clock;
-                _node = node;
+                _outer = clock;
+                _time = time;
+                _data = data;
             }
 
             public void Dispose()
             {
-                lock (_clock._monitor)
+                lock (_outer._monitor)
                 {
-                    _clock._overrides.Remove(_node);
+                    if (_time != null) _outer._time.Remove(_time);
+                    if (_data != null) _outer._data.Remove(_data);
                 }
             }
         }
 
-        public IDisposable At(DateTime t)
+        public IDisposable Push(DateTime? t, TagsAndFields data)
         {
             lock (_monitor)
             {
-                return new Override(this, _overrides.AddLast(t));
+                return new Override
+                (
+                    this,
+                    t.HasValue ? _time.AddLast(t.Value) : null,
+                    data != null ? _data.AddLast(data) : null
+                );
             }
         }
 
@@ -95,8 +156,22 @@ namespace InfluxDb
             {
                 lock (_monitor)
                 {
-                    return _overrides.Any() ? _overrides.Last.Value : DateTime.UtcNow;
+                    return _time.Any() ? _time.Last.Value : DateTime.UtcNow;
                 }
+            }
+        }
+
+        // It's OK to mutate the result.
+        public TagsAndFields TagsAndFields()
+        {
+            lock (_monitor)
+            {
+                var res = new TagsAndFields() { Tags = new Tags(), Fields = new Fields() };
+                foreach (TagsAndFields data in _data)
+                {
+                    res.MergeFrom(data);
+                }
+                return res;
             }
         }
     }

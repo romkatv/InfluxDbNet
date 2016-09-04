@@ -95,22 +95,12 @@ namespace InfluxDb
             if (other.Tags != null)
             {
                 Tags = Tags ?? new Tags();
-                MergeFrom(Tags, other.Tags);
+                Tags.MergeFrom(other.Tags);
             }
             if (other.Fields != null)
             {
                 Fields = Fields ?? new Fields();
-                MergeFrom(Fields, other.Fields);
-            }
-        }
-
-        // The left argument is mutated.
-        // The right argument wins in case of key conflicts.
-        static void MergeFrom<TKey, TValue>(SortedDictionary<TKey, TValue> x, SortedDictionary<TKey, TValue> y)
-        {
-            foreach (var kv in y)
-            {
-                x[kv.Key] = kv.Value;
+                Fields.MergeFrom(other.Fields);
             }
         }
     }

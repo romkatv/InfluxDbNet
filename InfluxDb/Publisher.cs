@@ -78,6 +78,11 @@ namespace InfluxDb
             // This is essentially insertion sort.
             // Since timestamps usually come in asceding order, it should be fast.
             while (idx > 0 && _points[idx - 1].Timestamp > p.Timestamp) --idx;
+            if (idx < _points.Count && _points[idx].Timestamp == p.Timestamp)
+            {
+                _points[idx].Fields.MergeFrom(p.Fields);
+                return;
+            }
             if (idx > 0 && idx < _points.Count && UselessMiddle(_points[idx - 1], p, _points[idx]))
             {
                 // The point is in between two existing points both of which are within _samplingPeriod.

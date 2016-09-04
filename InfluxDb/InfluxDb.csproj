@@ -59,6 +59,7 @@
     <Compile Include="PriorityQueue.cs" />
     <Compile Include="Publisher.cs" />
     <Compile Include="Reference.cs" />
+    <Compile Include="SortedDictionaryExtension.cs" />
     <Compile Include="Timeseries.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ScheduledQueue.cs" />

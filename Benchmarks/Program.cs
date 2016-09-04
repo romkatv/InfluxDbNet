@@ -187,7 +187,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_4()
+        public void Push_4_4_4()
         {
             InfluxDb.Timeseries.Push(new Metric4()
             {
@@ -463,31 +463,32 @@ namespace Benchmarks
             //
             //         Method |     Median |    StdDev |
             // -------------- |----------- |---------- |
-            //     Push_1_0_1 |  2.8130 us | 0.1131 us |
-            //     Push_1_1_1 |  3.2811 us | 0.1206 us |
-            //     Push_4_0_1 |  3.0862 us | 0.0600 us |
-            //     Push_4_0_4 |  6.6069 us | 0.4273 us |
-            //     Push_4_1_1 |  3.3217 us | 0.1388 us |
-            //     Push_4_1_4 |  7.0569 us | 0.2572 us |
-            //     Push_4_4_1 |  6.4179 us | 0.1084 us |
-            //       Push_4_4 |  9.8008 us | 0.4382 us |
-            //    Push_16_0_1 |  3.8730 us | 0.1010 us |
-            //    Push_16_0_4 |  7.5832 us | 0.2618 us |
-            //   Push_16_0_16 | 30.6564 us | 1.5532 us |
-            //    Push_16_1_1 |  4.2413 us | 0.1595 us |
-            //    Push_16_1_4 |  8.1631 us | 0.2771 us |
-            //   Push_16_1_16 | 31.0156 us | 1.1613 us |
-            //    Push_16_4_1 |  7.5784 us | 0.1858 us |
-            //    Push_16_4_4 | 10.5826 us | 0.2947 us |
-            //   Push_16_4_16 | 33.3721 us | 1.3000 us |
-            //   Push_16_16_1 | 28.5236 us | 0.7836 us |
-            //   Push_16_16_4 | 31.5153 us | 0.3192 us |
-            //  Push_16_16_16 | 55.1654 us | 1.0638 us |
+            //     Push_1_0_1 |  2.5959 us | 0.1208 us |
+            //     Push_1_1_1 |  2.8539 us | 0.0910 us |
+            //     Push_4_0_1 |  2.7912 us | 0.1773 us |
+            //     Push_4_0_4 |  4.3179 us | 0.1576 us |
+            //     Push_4_1_1 |  2.9188 us | 0.1563 us |
+            //     Push_4_1_4 |  4.4506 us | 0.1186 us |
+            //     Push_4_4_1 |  3.6311 us | 0.1551 us |
+            //     Push_4_4_4 |  5.3141 us | 0.1669 us |
+            //    Push_16_0_1 |  3.3618 us | 0.1472 us |
+            //    Push_16_0_4 |  5.2516 us | 0.1854 us |
+            //   Push_16_0_16 | 10.2235 us | 0.4929 us |
+            //    Push_16_1_1 |  3.7248 us | 0.0931 us |
+            //    Push_16_1_4 |  5.4385 us | 0.2652 us |
+            //   Push_16_1_16 | 10.2315 us | 0.3020 us |
+            //    Push_16_4_1 |  4.5054 us | 0.1529 us |
+            //    Push_16_4_4 |  6.1313 us | 0.2707 us |
+            //   Push_16_4_16 | 10.8363 us | 0.2829 us |
+            //   Push_16_16_1 |  6.9902 us | 0.1678 us |
+            //   Push_16_16_4 |  8.6739 us | 0.2792 us |
+            //  Push_16_16_16 | 13.0362 us | 0.5730 us |
             //
             //           ===[ Conclusions ]===
             //
             // *   The number of declared tags and fields has little effect on performance.
-            // *   Every tag and field that is actually set costs ~2 us.
+            // *   Timeseries.Push(obj) costs about 2 us plus 400 ns for each tag and field
+            //     that is actually set.
             BenchmarkDotNet.Running.BenchmarkRunner.Run<BM_Timeseries>();
         }
     }

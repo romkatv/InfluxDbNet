@@ -7,8 +7,8 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-using Tags = System.Collections.Generic.SortedDictionary<string, string>;
-using Fields = System.Collections.Generic.SortedDictionary<string, InfluxDb.Field>;
+using Tags = System.Collections.Generic.SortedList<string, string>;
+using Fields = System.Collections.Generic.SortedList<string, InfluxDb.Field>;
 
 namespace InfluxDb
 {

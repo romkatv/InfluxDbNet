@@ -30,6 +30,7 @@ namespace InfluxDb
 
         public void Push<TColumns>(string name, TColumns cols, DateTime t)
         {
+            // It's OK to mutate `data`.
             TagsAndFields data = _overrides.TagsAndFields();
             Extract(cols, ref data.Tags, ref data.Fields);
             var p = new Point()
@@ -37,6 +38,7 @@ namespace InfluxDb
                 Key = new PointKey() { Name = name, Tags = data.Tags },
                 Value = new PointValue() { Timestamp = t, Fields = data.Fields },
             };
+            // The sink may mutate `p`. We must not mutate it.
             _sink.Push(p);
         }
 

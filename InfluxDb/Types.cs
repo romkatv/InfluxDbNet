@@ -130,6 +130,7 @@ namespace InfluxDb
 
     public interface ISink
     {
+        // The caller must not mutate `p`. ISink may mutate it.
         void Push(Point p);
     }
 

@@ -59,6 +59,7 @@ namespace InfluxDb
         readonly TimeSpan _samplingPeriod;
         readonly Nito.Deque<PointValue> _points = new Nito.Deque<PointValue>();
 
+        // The key is immutable: neither PointBuffer nor the caller may change it.
         public PointBuffer(PointKey key, int maxSize, OnFull onFull, TimeSpan samplingPeriod)
         {
             Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
@@ -71,6 +72,7 @@ namespace InfluxDb
 
         public int Count { get { return _points.Count; } }
 
+        // The caller must not mutate `p`. PointBuffer may mutate it.
         public void Add(PointValue p)
         {
             Condition.Requires(p, "p").IsNotNull();
@@ -199,6 +201,7 @@ namespace InfluxDb
             _send.Schedule(DateTime.UtcNow + _cfg.SendPeriod);
         }
 
+        // The caller must not mutate `p`. Publisher may mutate it.
         public void Push(Point p)
         {
             Condition.Requires(p, "p").IsNotNull();

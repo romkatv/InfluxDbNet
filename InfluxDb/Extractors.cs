@@ -196,7 +196,7 @@ namespace InfluxDb
             {
                 return typeof(long);
             }
-            if (f == typeof(float))
+            if (f == typeof(float) || f == typeof(decimal))
             {
                 return typeof(double);
             }

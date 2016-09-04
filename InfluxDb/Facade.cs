@@ -71,7 +71,7 @@ namespace InfluxDb
 
         static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)
         {
-            tags = tags ?? new Tags();
+            tags = tags ?? new Tags(StringComparer.Ordinal);
             fields = fields ?? new Fields();
             var t = tags;
             var f = fields;

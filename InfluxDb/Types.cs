@@ -119,7 +119,7 @@ namespace InfluxDb
     public class PointValue
     {
         public DateTime Timestamp { get; set; }
-        public SortedList<string, Field> Fields { get; set; }
+        public Dictionary<string, Field> Fields { get; set; }
     }
 
     public class Point

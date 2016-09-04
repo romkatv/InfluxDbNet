@@ -8,65 +8,46 @@ namespace InfluxDb
 {
     public static class Timeseries
     {
-        static readonly ReplaceableSink _sink = new ReplaceableSink(null);
-        static readonly Facade _facade = new Facade(_sink);
+        static readonly Synchronized<Facade> _facade = new Synchronized<Facade>();
 
         public static void Push<TColumns>(string name, TColumns cols)
         {
-            _facade.Push(name, cols);
+            _facade.Value?.Push(name, cols);
         }
 
         public static void Push<TColumns>(string name, TColumns cols, DateTime t)
         {
-            _facade.Push(name, cols, t);
+            _facade.Value?.Push(name, cols, t);
         }
 
         public static void Push<TColumns>(TColumns cols)
         {
-            _facade.Push(cols);
+            _facade.Value?.Push(cols);
         }
 
         public static void Push<TColumns>(TColumns cols, DateTime t)
         {
-            _facade.Push(cols, t);
+            _facade.Value?.Push(cols, t);
         }
 
         public static IDisposable At(DateTime t)
         {
-            return _facade.At(t);
+            return _facade.Value?.At(t);
         }
 
         public static IDisposable With<TColumns>(DateTime t, TColumns cols)
         {
-            return _facade.With(t, cols);
+            return _facade.Value?.With(t, cols);
         }
 
         public static IDisposable With<TColumns>(TColumns cols)
         {
-            return _facade.With(cols);
+            return _facade.Value?.With(cols);
         }
 
         public static void SetSink(ISink sink)
         {
-            _sink.SetSink(sink);
-        }
-    }
-
-    class ReplaceableSink : ISink
-    {
-        readonly Synchronized<ISink> _sink;
-
-        public ReplaceableSink(ISink sink)
-        {
-            _sink = new Synchronized<ISink>(sink);
-        }
-
-        public void SetSink(ISink sink) { _sink.Value = sink; }
-
-        public void Push(Point p)
-        {
-            ISink sink = _sink.Value;
-            if (sink != null) sink.Push(p);
+            _facade.Value = new Facade(sink);
         }
     }
 }

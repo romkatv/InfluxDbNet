@@ -28,8 +28,8 @@ namespace InfluxDb
 
         static void WritePoint(Point p, StringBuilder sb)
         {
-            WriteKey(p.Name, sb);
-            foreach (var kv in p.Tags)
+            WriteKey(p.Key.Name, sb);
+            foreach (var kv in p.Key.Tags)
             {
                 sb.Append(',');
                 WriteKey(kv.Key, sb);
@@ -39,7 +39,7 @@ namespace InfluxDb
 
             sb.Append(' ');
             bool first = true;
-            foreach (var kv in p.Fields)
+            foreach (var kv in p.Value.Fields)
             {
                 if (first) first = false;
                 else sb.Append(',');
@@ -50,7 +50,7 @@ namespace InfluxDb
             }
 
             sb.Append(' ');
-            WriteTimestamp(p.Timestamp, sb);
+            WriteTimestamp(p.Value.Timestamp, sb);
         }
 
         static void WriteTag(string tag, StringBuilder sb)

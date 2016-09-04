@@ -34,10 +34,8 @@ namespace InfluxDb
             Extract(cols, ref data.Tags, ref data.Fields);
             var p = new Point()
             {
-                Name = name,
-                Timestamp = t,
-                Tags = data.Tags,
-                Fields = data.Fields,
+                Key = new PointKey() { Name = name, Tags = data.Tags },
+                Value = new PointValue() { Timestamp = t, Fields = data.Fields },
             };
             _sink.Push(p);
         }

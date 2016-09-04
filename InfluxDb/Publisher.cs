@@ -52,15 +52,18 @@ namespace InfluxDb
 
     class PointBuffer
     {
+        readonly PointKey _key;
         // Negative means infinity.
         readonly int _maxSize;
         readonly OnFull _onFull;
         readonly TimeSpan _samplingPeriod;
-        readonly Nito.Deque<Point> _points = new Nito.Deque<Point>();
+        readonly Nito.Deque<PointValue> _points = new Nito.Deque<PointValue>();
 
-        public PointBuffer(int maxSize, OnFull onFull, TimeSpan samplingPeriod)
+        public PointBuffer(PointKey key, int maxSize, OnFull onFull, TimeSpan samplingPeriod)
         {
             Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
+            Condition.Requires(key, "key").IsNotNull();
+            _key = key;
             _maxSize = maxSize;
             _onFull = onFull;
             _samplingPeriod = samplingPeriod;
@@ -68,8 +71,9 @@ namespace InfluxDb
 
         public int Count { get { return _points.Count; } }
 
-        public void Add(Point p)
+        public void Add(PointValue p)
         {
+            Condition.Requires(p, "p").IsNotNull();
             int idx = _points.Count;
             // This is essentially insertion sort.
             // Since timestamps usually come in asceding order, it should be fast.
@@ -109,7 +113,7 @@ namespace InfluxDb
             n = n < 0 ? _points.Count : Math.Min(n, _points.Count);
             while (n-- > 0)
             {
-                target.Add(_points.First());
+                target.Add(new Point() { Key = _key, Value = _points.First() });
                 _points.RemoveFromFront();
             }
         }
@@ -127,7 +131,7 @@ namespace InfluxDb
             }
         }
 
-        bool UselessMiddle(Point p1, Point p2, Point p3)
+        bool UselessMiddle(PointValue p1, PointValue p2, PointValue p3)
         {
             return p2.Timestamp - p1.Timestamp < _samplingPeriod &&
                    p3.Timestamp - p2.Timestamp < _samplingPeriod;
@@ -147,20 +151,20 @@ namespace InfluxDb
         }
     }
 
-    class PointKeyComparer : IEqualityComparer<Point>
+    class PointKeyComparer : IEqualityComparer<PointKey>
     {
         readonly SequenceComparer<KeyValuePair<string, string>> _cmp =
             new SequenceComparer<KeyValuePair<string, string>>(
                 new KeyValueComparer<string, string>());
 
-        public bool Equals(Point x, Point y)
+        public bool Equals(PointKey x, PointKey y)
         {
             if (x == null) return y == null;
             if (y == null) return false;
             return x.Name == y.Name && _cmp.Equals(x.Tags, y.Tags);
         }
 
-        public int GetHashCode(Point p)
+        public int GetHashCode(PointKey p)
         {
             if (p == null) return 501107580;  // Random number.
             return Hash.Combine(Hash.HashAll(p.Name), _cmp.GetHashCode(p.Tags));
@@ -172,8 +176,8 @@ namespace InfluxDb
         readonly object _monitor = new object();
         readonly IBackend _backend;
         readonly PublisherConfig _cfg;
-        readonly Dictionary<Point, PointBuffer> _points =
-            new Dictionary<Point, PointBuffer>(new PointKeyComparer());
+        readonly Dictionary<PointKey, PointBuffer> _points =
+            new Dictionary<PointKey, PointBuffer>(new PointKeyComparer());
         readonly PeriodicAction _send;
         // Value is true if the entry was added before _batch was cut.
         readonly Dictionary<Reference<Action>, bool> _wake =
@@ -194,15 +198,17 @@ namespace InfluxDb
         public void Push(Point p)
         {
             Condition.Requires(p, "p").IsNotNull();
+            Condition.Requires(p.Key, "p.Key").IsNotNull();
+            Condition.Requires(p.Value, "p.Value").IsNotNull();
             lock (_monitor)
             {
                 PointBuffer buf;
-                if (!_points.TryGetValue(p, out buf))
+                if (!_points.TryGetValue(p.Key, out buf))
                 {
-                    buf = new PointBuffer(_cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod);
-                    _points.Add(p, buf);
+                    buf = new PointBuffer(p.Key, _cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod);
+                    _points.Add(p.Key, buf);
                 }
-                buf.Add(p);
+                buf.Add(p.Value);
                 if (_batch == null && IsFull())
                 {
                     MakeBatch();
@@ -240,14 +246,14 @@ namespace InfluxDb
             Condition.Requires(_batch, "_batch").IsNull();
             Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
             _batch = new List<Point>();
-            var empty = new List<Point>();
+            var empty = new List<PointKey>();
             foreach (var kv in _points)
             {
                 kv.Value.ConsumeAppendOldest(
                     _cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
                 if (kv.Value.Count == 0) empty.Add(kv.Key);
             }
-            foreach (Point key in empty) _points.Remove(key);
+            foreach (PointKey key in empty) _points.Remove(key);
             foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
         }
 

@@ -110,13 +110,22 @@ namespace InfluxDb
         }
     }
 
+    public class PointKey
+    {
+        public string Name { get; set; }
+        public SortedDictionary<string, string> Tags { get; set; }
+    }
+
+    public class PointValue
+    {
+        public DateTime Timestamp { get; set; }
+        public SortedDictionary<string, Field> Fields { get; set; }
+    }
 
     public class Point
     {
-        public string Name { get; set; }
-        public DateTime Timestamp { get; set; }
-        public SortedDictionary<string, string> Tags { get; set; }
-        public SortedDictionary<string, Field> Fields { get; set; }
+        public PointKey Key { get; set; }
+        public PointValue Value { get; set; }
     }
 
     public interface ISink

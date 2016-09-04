@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-using Tags = System.Collections.Generic.SortedList<string, string>;
+using Tags = System.Collections.Generic.Dictionary<string, string>;
 using Fields = System.Collections.Generic.Dictionary<string, InfluxDb.Field>;
 
 namespace InfluxDb
@@ -71,7 +71,7 @@ namespace InfluxDb
 
         static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)
         {
-            tags = tags ?? new Tags(StringComparer.Ordinal);
+            tags = tags ?? new Tags();
             fields = fields ?? new Fields();
             var t = tags;
             var f = fields;

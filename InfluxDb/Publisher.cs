@@ -158,9 +158,8 @@ namespace InfluxDb
 
     class PointKeyComparer : IEqualityComparer<PointKey>
     {
-        readonly SequenceComparer<KeyValuePair<string, string>> _cmp =
-            new SequenceComparer<KeyValuePair<string, string>>(
-                new KeyValueComparer<string, string>());
+        readonly DictionaryComparer<string, string> _cmp =
+            new DictionaryComparer<string, string>();
 
         public bool Equals(PointKey x, PointKey y)
         {

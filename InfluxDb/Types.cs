@@ -113,7 +113,7 @@ namespace InfluxDb
     public class PointKey
     {
         public string Name { get; set; }
-        public SortedList<string, string> Tags { get; set; }
+        public Dictionary<string, string> Tags { get; set; }
     }
 
     public class PointValue

@@ -484,6 +484,10 @@ namespace Benchmarks
             //   Push_16_16_4 |  8.6739 us | 0.2792 us |
             //  Push_16_16_16 | 13.0362 us | 0.5730 us |
             //
+            // Note: Push_X_Y_Z measures the performance of Timeseries.Push(obj) where
+            // typeof(obj) has X declared tags and X declared fields, and obj has Y set
+            // tags and Z set fields.
+            //
             //           ===[ Conclusions ]===
             //
             // *   The number of declared tags and fields has little effect on performance.

@@ -25,10 +25,10 @@ namespace InfluxDb
 
         public void Push<TColumns>(string name, TColumns cols)
         {
-            Push(name, cols, _overrides.UtcNow);
+            Push(name, _overrides.UtcNow, cols);
         }
 
-        public void Push<TColumns>(string name, TColumns cols, DateTime t)
+        public void Push<TColumns>(string name, DateTime t, TColumns cols)
         {
             // It's OK to mutate `data`.
             TagsAndFields data = _overrides.TagsAndFields();
@@ -47,9 +47,9 @@ namespace InfluxDb
             Push(MeasurementExtractor<TColumns>.Name, cols);
         }
 
-        public void Push<TColumns>(TColumns cols, DateTime t)
+        public void Push<TColumns>(DateTime t, TColumns cols)
         {
-            Push(MeasurementExtractor<TColumns>.Name, cols, t);
+            Push(MeasurementExtractor<TColumns>.Name, t, cols);
         }
 
         public IDisposable At(DateTime t)

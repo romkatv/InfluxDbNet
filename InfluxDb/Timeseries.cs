@@ -15,9 +15,9 @@ namespace InfluxDb
             _facade.Value?.Push(name, cols);
         }
 
-        public static void Push<TColumns>(string name, TColumns cols, DateTime t)
+        public static void Push<TColumns>(string name, DateTime t, TColumns cols)
         {
-            _facade.Value?.Push(name, cols, t);
+            _facade.Value?.Push(name, t, cols);
         }
 
         public static void Push<TColumns>(TColumns cols)
@@ -25,9 +25,9 @@ namespace InfluxDb
             _facade.Value?.Push(cols);
         }
 
-        public static void Push<TColumns>(TColumns cols, DateTime t)
+        public static void Push<TColumns>(DateTime t, TColumns cols)
         {
-            _facade.Value?.Push(cols, t);
+            _facade.Value?.Push(t, cols);
         }
 
         public static IDisposable At(DateTime t)

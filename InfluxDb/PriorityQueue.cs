@@ -38,11 +38,13 @@ namespace InfluxDb
             return res;
         }
 
+        // The returned function allows you to remove the element from the queue.
+        // It returns true if the element has been removed. It never throws.
         public Func<bool> Push(TKey key, TValue value)
         {
             var id = Tuple.Create(key, _index++);
             _data.Add(id, value);
-            return () => { return _data.Remove(id); };
+            return () => _data.Remove(id);
         }
     }
 }

@@ -35,13 +35,13 @@ namespace InfluxDb
         // See MaxPointsPerSeries.
         public OnFull OnFull { get; set; }
 
-        // Send data to InfluxDb at least once every so often.
+        // Send data to InfluxDb at least once every so often (without overlapping requests, though).
         public TimeSpan SendPeriod { get; set; }
 
-        // Timeout for HTTP POST requests to InfluxDb.
+        // Timeout for HTTP POST requests to InfluxDb. TimeSpan.FromMilliseconds(-1) means infinity.
         public TimeSpan SendTimeout { get; set; }
 
-        // null is legal.
+        // Run all delayed and periodic actions on this scheduler. Leave it as null if you don't care.
         public Scheduler Scheduler { get; set; }
 
         public PublisherConfig Clone()
@@ -56,20 +56,23 @@ namespace InfluxDb
         // Negative means infinity.
         readonly int _maxSize;
         readonly OnFull _onFull;
+        // Non-negative.
         readonly TimeSpan _samplingPeriod;
+        // _points.Count may be a bit over _maxSize.
         readonly Nito.Deque<PointValue> _points = new Nito.Deque<PointValue>();
 
         // The key is immutable: neither PointBuffer nor the caller may change it.
         public PointBuffer(PointKey key, int maxSize, OnFull onFull, TimeSpan samplingPeriod)
         {
-            Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
             Condition.Requires(key, "key").IsNotNull();
+            Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
             _key = key;
             _maxSize = maxSize;
             _onFull = onFull;
             _samplingPeriod = samplingPeriod;
         }
 
+        // Count may be a bit over maxSize passed to the constructor.
         public int Count { get { return _points.Count; } }
 
         // The caller must not mutate `p`. PointBuffer may mutate it.
@@ -80,9 +83,9 @@ namespace InfluxDb
             // This is essentially insertion sort.
             // Since timestamps usually come in asceding order, it should be fast.
             while (idx > 0 && _points[idx - 1].Timestamp > p.Timestamp) --idx;
-            if (idx < _points.Count && _points[idx].Timestamp == p.Timestamp)
+            if (idx > 0 && _points[idx - 1].Timestamp == p.Timestamp)
             {
-                _points[idx].Fields.MergeFrom(p.Fields);
+                _points[idx - 1].Fields.MergeFrom(p.Fields);
                 return;
             }
             if (idx > 0 && idx < _points.Count && UselessMiddle(_points[idx - 1], p, _points[idx]))

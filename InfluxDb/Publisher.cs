@@ -1,4 +1,5 @@
 ﻿using Conditions;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -53,6 +54,8 @@ namespace InfluxDb
 
     class PointBuffer
     {
+        static readonly Logger _log = LogManager.GetCurrentClassLogger();
+
         readonly PointKey _key;
         // Negative means infinity.
         readonly int _maxSize;
@@ -133,6 +136,8 @@ namespace InfluxDb
         void MaybeCompact()
         {
             if (_maxSize < 0 || _points.Count <= _maxSize) return;
+            _log.LogEvery(TimeSpan.FromSeconds(10), LogLevel.Warn,
+                          "Dropping statistics on the floor. Check your InfluxDb configuration.");
             switch (_onFull)
             {
                 case OnFull.DropOldest:

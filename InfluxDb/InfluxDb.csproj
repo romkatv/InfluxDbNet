@@ -56,6 +56,7 @@
     <Compile Include="Facade.cs" />
     <Compile Include="Extractors.cs" />
     <Compile Include="Hash.cs" />
+    <Compile Include="LoggerExtension.cs" />
     <Compile Include="PeriodicAction.cs" />
     <Compile Include="PriorityQueue.cs" />
     <Compile Include="Publisher.cs" />

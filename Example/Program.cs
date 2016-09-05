@@ -85,8 +85,8 @@ namespace Example
                 {
                     // HTTP POST http://localhost:8086/write?precision=u&db=finance
                     //
-                    // market_data,exchange=Coinbase,product=BTCUSD,signal=Buy best_ask=777,best_bid=666,position=42 1472471586000000
-                    // trades,exchange=Coinbase,product=BTCUSD position=42,realized_pnl=1337 1472471586000000
+                    // market_data,exchange=Coinbase,product=BTCUSD,signal=Buy best_ask=777,best_bid=666,position=42 1472471586000000000
+                    // trades,exchange=Coinbase,product=BTCUSD position=42,realized_pnl=1337 1472471586000000000
                     pub.Flush(TimeSpan.FromSeconds(10)).Wait();
                 }
                 catch (Exception e)

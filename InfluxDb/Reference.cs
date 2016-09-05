@@ -9,7 +9,8 @@ namespace InfluxDb
 {
     public struct Reference<T> : IEquatable<Reference<T>> where T : class
     {
-        static ConditionalWeakTable<T, object> _sidekicks = new ConditionalWeakTable<T, object>();
+        static readonly ConditionalWeakTable<T, object> _sidekicks =
+            new ConditionalWeakTable<T, object>();
 
         public readonly T Value;
 

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace InfluxDb
 {
+    // Essentially Variant<long, double, bool, string>.
     public abstract class Field : IEquatable<Field>
     {
         public static Field New(long val)
@@ -136,6 +137,7 @@ namespace InfluxDb
 
     public interface IBackend
     {
+        // Timeout equal to TimeSpan.FromMilliseconds(-1) means infinity.
         Task Send(List<Point> points, TimeSpan timeout);
     }
 }

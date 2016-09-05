@@ -36,6 +36,7 @@ namespace InfluxDb
         public OnFull OnFull { get; set; }
 
         // Send data to InfluxDb at least once every so often (without overlapping requests, though).
+        // Must be positive.
         public TimeSpan SendPeriod { get; set; }
 
         // Timeout for HTTP POST requests to InfluxDb. TimeSpan.FromMilliseconds(-1) means infinity.
@@ -178,15 +179,19 @@ namespace InfluxDb
         readonly Dictionary<PointKey, PointBuffer> _points =
             new Dictionary<PointKey, PointBuffer>(new PointKeyComparer());
         readonly PeriodicAction _send;
-        // Value is true if the entry was added before _batch was cut.
+        // Keys are actions that complete Flush() tasks.
+        // Values are true for entries that were added before _batch was cut.
         readonly Dictionary<Reference<Action>, bool> _wake =
             new Dictionary<Reference<Action>, bool>();
+        // Points ready to be sent to the backend. If not null, we'll be trying
+        // to send them until we succeed.
         List<Point> _batch = null;
 
         public Publisher(IBackend backend, PublisherConfig cfg)
         {
             Condition.Requires(backend, "backend").IsNotNull();
             Condition.Requires(cfg, "cfg").IsNotNull();
+            Condition.Requires(cfg.SendPeriod, "cfg.SendPeriod").IsGreaterThan(TimeSpan.Zero);
             _backend = backend;
             _cfg = cfg.Clone();
             if (_cfg.Scheduler == null) _cfg.Scheduler = new Scheduler();

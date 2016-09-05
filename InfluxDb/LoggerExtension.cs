@@ -14,6 +14,7 @@ namespace InfluxDb
             = new Dictionary<Tuple<Reference<Logger>, string>, DateTime>();
 
         // {log, message} is the key.
+        // Does nothing if a log messages with the same key has been written less than `period` ago.
         public static void LogEvery(
             this Logger log, TimeSpan period, LogLevel level, string message, params object[] args)
         {

@@ -29,7 +29,7 @@ namespace InfluxDb
         public int MaxPointsPerSeries { get; set; }
 
         // Send at most this many points per HTTP POST request to InfluxDb.
-        // Negative means infinity.
+        // Negative means infinity. Zero is invalid.
         public int MaxPointsPerBatch { get; set; }
 
         // See MaxPointsPerSeries.
@@ -191,6 +191,7 @@ namespace InfluxDb
         {
             Condition.Requires(backend, "backend").IsNotNull();
             Condition.Requires(cfg, "cfg").IsNotNull();
+            Condition.Requires(cfg.MaxPointsPerBatch, "cfg.MaxPointsPerBatch").IsNotEqualTo(0);
             Condition.Requires(cfg.SendPeriod, "cfg.SendPeriod").IsGreaterThan(TimeSpan.Zero);
             if (cfg.SendTimeout != TimeSpan.FromMilliseconds(-1))
                 Condition.Requires(cfg.SendTimeout, "cfg.SendTimeout").IsGreaterOrEqual(TimeSpan.Zero);
@@ -275,7 +276,8 @@ namespace InfluxDb
         bool IsFull()
         {
             Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
-            return _cfg.MaxPointsPerBatch >= 0 && _points.Count >= _cfg.MaxPointsPerBatch;
+            return _cfg.MaxPointsPerBatch >= 0 &&
+                   _points.Values.Select(b => b.Count).Sum() >= _cfg.MaxPointsPerBatch;
         }
 
         // At most one instance of DoFlush() is running at any given time.

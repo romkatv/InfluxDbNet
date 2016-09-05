@@ -242,7 +242,7 @@ namespace InfluxDb
                 var wake = new Reference<Action>(() =>
                 {
                     try { done.RunSynchronously(); }  // it's gonna throw if the task has already been cancelled
-                    catch (Exception) { }
+                    catch { }
                 });
                 lock (_monitor) _wake[wake] = false;
                 _send.Schedule(DateTime.UtcNow);
@@ -303,7 +303,7 @@ namespace InfluxDb
                 {
                     if (kv.Value)
                     {
-                        kv.Key.Value.Invoke();
+                        Task.Run(kv.Key.Value);
                         _wake.Remove(kv.Key);
                     }
                 }

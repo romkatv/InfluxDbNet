@@ -19,7 +19,7 @@ namespace InfluxDb
     {
         // Downsample data on the fly by dropping points with the same key
         // that are close to each other in time.
-        // Zero means no downsampling.
+        // Must be non-negative. Zero means no downsampling.
         public TimeSpan SamplingPeriod { get; set; }
 
         // Store at most this many points in memory per key. When the buffer fills up,
@@ -192,6 +192,9 @@ namespace InfluxDb
             Condition.Requires(backend, "backend").IsNotNull();
             Condition.Requires(cfg, "cfg").IsNotNull();
             Condition.Requires(cfg.SendPeriod, "cfg.SendPeriod").IsGreaterThan(TimeSpan.Zero);
+            if (cfg.SendTimeout != TimeSpan.FromMilliseconds(-1))
+                Condition.Requires(cfg.SendTimeout, "cfg.SendTimeout").IsGreaterOrEqual(TimeSpan.Zero);
+            Condition.Requires(cfg.SamplingPeriod, "cfg.SamplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
             _backend = backend;
             _cfg = cfg.Clone();
             if (_cfg.Scheduler == null) _cfg.Scheduler = new Scheduler();
@@ -205,6 +208,9 @@ namespace InfluxDb
             Condition.Requires(p, "p").IsNotNull();
             Condition.Requires(p.Key, "p.Key").IsNotNull();
             Condition.Requires(p.Value, "p.Value").IsNotNull();
+            Condition.Requires(p.Key.Name, "p.Key.Name").IsNotNull();
+            Condition.Requires(p.Key.Tags, "p.Key.Tags").IsNotNull();
+            Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotNull();
             lock (_monitor)
             {
                 PointBuffer buf;
@@ -227,7 +233,11 @@ namespace InfluxDb
             using (var cancel = new CancellationTokenSource(timeout))
             {
                 Task done = new Task(delegate { }, cancel.Token);
-                var wake = new Reference<Action>(() => done.RunSynchronously());
+                var wake = new Reference<Action>(() =>
+                {
+                    try { done.RunSynchronously(); }  // it's gonna throw if the task has already been cancelled
+                    catch (Exception) { }
+                });
                 lock (_monitor) _wake[wake] = false;
                 _send.Schedule(DateTime.UtcNow);
                 try

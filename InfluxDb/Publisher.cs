@@ -58,7 +58,7 @@ namespace InfluxDb
         readonly OnFull _onFull;
         // Non-negative.
         readonly TimeSpan _samplingPeriod;
-        // _points.Count may be a bit over _maxSize.
+        // Invariant: _maxSize < 0 || _points.Count <= _maxSize.
         readonly Nito.Deque<PointValue> _points = new Nito.Deque<PointValue>();
 
         // The key is immutable: neither PointBuffer nor the caller may change it.
@@ -72,7 +72,7 @@ namespace InfluxDb
             _samplingPeriod = samplingPeriod;
         }
 
-        // Count may be a bit over maxSize passed to the constructor.
+        // Guarantees: maxSize < 0 || Count <= maxSize (maxSize is the constructor argument).
         public int Count { get { return _points.Count; } }
 
         // The caller must not mutate `p`. PointBuffer may mutate it.
@@ -118,6 +118,7 @@ namespace InfluxDb
         }
 
         // Negative means infinity.
+        // The caller must not mutate Point.Key.
         public void ConsumeAppendOldest(int n, List<Point> target)
         {
             n = n < 0 ? _points.Count : Math.Min(n, _points.Count);
@@ -141,23 +142,12 @@ namespace InfluxDb
             }
         }
 
+        // Can we drop p2?
+        // Requires: p1.Timestamp <= p2.Timestamp <= p3.Timestamp.
         bool UselessMiddle(PointValue p1, PointValue p2, PointValue p3)
         {
             return p2.Timestamp - p1.Timestamp < _samplingPeriod &&
                    p3.Timestamp - p2.Timestamp < _samplingPeriod;
-        }
-    }
-
-    class KeyValueComparer<TKey, TValue> : IEqualityComparer<KeyValuePair<TKey, TValue>>
-    {
-        public bool Equals(KeyValuePair<TKey, TValue> x, KeyValuePair<TKey, TValue> y)
-        {
-            return object.Equals(x.Key, y.Key) && object.Equals(x.Value, y.Value);
-        }
-
-        public int GetHashCode(KeyValuePair<TKey, TValue> obj)
-        {
-            return Hash.HashAll(obj.Key, obj.Value);
         }
     }
 

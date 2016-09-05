@@ -29,7 +29,7 @@ namespace InfluxDb
         static void WritePoint(Point p, StringBuilder sb)
         {
             WriteKey(p.Key.Name, sb);
-            foreach (var kv in p.Key.Tags)
+            foreach (var kv in p.Key.Tags.OrderBy(kv => kv.Key))
             {
                 sb.Append(',');
                 WriteKey(kv.Key, sb);

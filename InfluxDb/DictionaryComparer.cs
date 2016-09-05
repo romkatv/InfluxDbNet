@@ -5,6 +5,8 @@ using System.Linq;
 namespace InfluxDb
 {
     // Allows null elements and even null dictionaries.
+    // Requires: if both dictionaries aren't null, the must have the same comparer (this property
+    // isn't enforced; you are on your own if you violate it).
     public class DictionaryComparer<TKey, TValue> : IEqualityComparer<Dictionary<TKey, TValue>>
     {
         readonly IEqualityComparer<TValue> _cmp;
@@ -42,6 +44,8 @@ namespace InfluxDb
             {
                 unchecked
                 {
+                    // We use + for combining hashes so that the order of the elements won't
+                    // affect the dictionary's hash value.
                     res += Hash.Combine(dict.Comparer.GetHashCode(kv.Key), HashVal(kv.Value));
                 }
             }

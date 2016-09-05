@@ -83,10 +83,12 @@ namespace Example
 
                 try
                 {
-                    // HTTP POST http://localhost:8086/write?precision=u&db=finance
+                    // HTTP POST http://localhost:8086/write?db=finance
                     //
                     // market_data,exchange=Coinbase,product=BTCUSD,signal=Buy best_ask=777,best_bid=666,position=42 1472471586000000000
                     // trades,exchange=Coinbase,product=BTCUSD position=42,realized_pnl=1337 1472471586000000000
+                    //
+                    // Note: the order of fields (but not tags) may differ.
                     pub.Flush(TimeSpan.FromSeconds(10)).Wait();
                 }
                 catch (Exception e)

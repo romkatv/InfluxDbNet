@@ -31,11 +31,13 @@ namespace InfluxDb
                 var uri = new StringBuilder(Endpoint);
                 if (!Endpoint.EndsWith("/")) uri.Append('/');
                 uri.Append("write");
-                uri.Append("?precision=u");  // timestamps are in microseconds
+                bool hasQuery = false;
                 Action<string, string> AddQueryParam = (name, value) =>
                 {
                     Condition.Requires(name, "name").IsNotNullOrEmpty();
                     if (value == null) return;
+                    uri.Append(hasQuery ? '&' : '?');
+                    hasQuery = true;
                     uri.AppendFormat("&{0}={1}", HttpUtility.UrlEncode(name), HttpUtility.UrlEncode(value));
                 };
                 AddQueryParam("db", Database);

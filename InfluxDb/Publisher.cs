@@ -185,7 +185,7 @@ namespace InfluxDb
             new Dictionary<PointKey, PointBuffer>(new PointKeyComparer());
         readonly PeriodicAction _send;
         // Keys are actions that complete Flush() tasks.
-        // Values are true for entries that were added before _batch was cut.
+        // Values are true for entries that were added before _batch was cut and the batch consumed all points.
         readonly Dictionary<Reference<Action>, bool> _wake =
             new Dictionary<Reference<Action>, bool>();
         // Points ready to be sent to the backend. If not null, we'll be trying
@@ -234,6 +234,7 @@ namespace InfluxDb
             }
         }
 
+        // It's unspecified whether it'll wait for the points pushed after the call to Flush().
         public async Task Flush(TimeSpan timeout)
         {
             using (var cancel = new CancellationTokenSource(timeout))
@@ -275,14 +276,19 @@ namespace InfluxDb
                 if (kv.Value.Count == 0) empty.Add(kv.Key);
             }
             foreach (PointKey key in empty) _points.Remove(key);
-            foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
+            if (_points.Count == 0)
+            {
+                foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
+            }
         }
 
         bool IsFull()
         {
             Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
-            return _cfg.MaxPointsPerBatch >= 0 &&
-                   _points.Values.Select(b => b.Count).Sum() >= _cfg.MaxPointsPerBatch;
+            return (_cfg.MaxPointsPerBatch >= 0 &&
+                    _points.Values.Select(b => b.Count).Sum() >= _cfg.MaxPointsPerBatch) ||
+                   (_cfg.MaxPointsPerSeries >= 0 &&
+                    _points.Values.Any(b => 2 * b.Count > _cfg.MaxPointsPerSeries));
         }
 
         // At most one instance of DoFlush() is running at any given time.
@@ -295,7 +301,7 @@ namespace InfluxDb
             // If we can't send, this statement will throw and we'll retry in SendPeriod.
             // It's OK to read _batch without a lock here. It can't be modified by any other
             // thread when it's not null.
-            await _backend.Send(_batch, _cfg.SendTimeout);
+            if (_batch.Count > 0) await _backend.Send(_batch, _cfg.SendTimeout);
             lock (_monitor)
             {
                 _batch = null;

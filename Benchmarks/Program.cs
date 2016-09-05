@@ -96,6 +96,8 @@ namespace Benchmarks
 
     public class BM_Timeseries
     {
+        long _ticks = 0;
+
         public BM_Timeseries()
         {
             var cfg = new InfluxDb.PublisherConfig()
@@ -113,7 +115,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_1_0_1()
         {
-            InfluxDb.Timeseries.Push(new Metric1()
+            Push(new Metric1()
             {
                 Field1 = 1.0,
             });
@@ -122,7 +124,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_1_1_1()
         {
-            InfluxDb.Timeseries.Push(new Metric1()
+            Push(new Metric1()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -132,7 +134,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_4_0_1()
         {
-            InfluxDb.Timeseries.Push(new Metric4()
+            Push(new Metric4()
             {
                 Field1 = 1.0,
             });
@@ -141,7 +143,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_4_0_4()
         {
-            InfluxDb.Timeseries.Push(new Metric4()
+            Push(new Metric4()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -153,7 +155,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_4_1_1()
         {
-            InfluxDb.Timeseries.Push(new Metric4()
+            Push(new Metric4()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -163,7 +165,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_4_1_4()
         {
-            InfluxDb.Timeseries.Push(new Metric4()
+            Push(new Metric4()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -176,7 +178,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_4_4_1()
         {
-            InfluxDb.Timeseries.Push(new Metric4()
+            Push(new Metric4()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -189,7 +191,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_4_4_4()
         {
-            InfluxDb.Timeseries.Push(new Metric4()
+            Push(new Metric4()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -205,7 +207,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_1()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Field1 = 1.0,
             });
@@ -214,7 +216,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_4()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -226,7 +228,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_16()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -250,7 +252,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_1()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -260,7 +262,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_4()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -273,7 +275,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_16()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -298,7 +300,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_1()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -311,7 +313,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_4()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -327,7 +329,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_16()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -355,7 +357,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_1()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -380,7 +382,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_4()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -404,11 +406,11 @@ namespace Benchmarks
                 Field4 = 4.0,
             });
         }
-        
+
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_16()
         {
-            InfluxDb.Timeseries.Push(new Metric16()
+            Push(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -443,6 +445,12 @@ namespace Benchmarks
                 Field15 = 15.0,
                 Field16 = 16.0,
             });
+        }
+
+        void Push<TCols>(TCols cols)
+        {
+            // Ensure that all timestamps are distinct.
+            InfluxDb.Timeseries.Push(new DateTime(++_ticks), cols);
         }
     }
 

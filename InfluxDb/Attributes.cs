@@ -7,9 +7,26 @@ using System.Threading.Tasks;
 
 namespace InfluxDb
 {
+    // Fields and properties marked with this attribute become tags in InfluxDb.
+    // See https://docs.influxdata.com/influxdb/v1.0/concepts/glossary/#tag.
+    //
+    //   class Perf {
+    //     [Tag]
+    //     public string Host { get; set; }
+    //
+    //     public double CpuLoad { get; set; }
+    //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class Tag : Attribute { };
 
+    // When applied to properties and fields, overrides the name of the tag/field in InfluxDb.
+    // When applied to classes and structs, overrides the name of the metric in InfluxDb.
+    //
+    //   [Name("performance")]
+    //   class Perf {
+    //     [Name("cpu")]
+    //     public double CpuLoad { get; set; }
+    //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Class | AttributeTargets.Struct)]
     public class Name : Attribute
     {
@@ -22,6 +39,16 @@ namespace InfluxDb
         public string Value { get; private set; }
     };
 
+    // When points get deleted due to down-sampling or overfull buffer, fields (but not tags) get
+    // aggregated. This attribute can be used to specify the aggregation algorithm. The default is `Last`.
+    //
+    // When applied to properties and fields, overrides the name of the tag/field in InfluxDb.
+    // When applied to classes and structs, overrides the name of the metric in InfluxDb.
+    //
+    //   class Perf {
+    //     [Aggregated(Aggregation.Sum)]
+    //     public int PageFaults { get; set; }
+    //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class Aggregated : Attribute
     {
@@ -33,6 +60,13 @@ namespace InfluxDb
         public Aggregation Aggregation { get; private set; }
     }
 
+    // When applied to properties and fields, instructs the library to ignore them.
+    //
+    //   class Perf {
+    //     [Ignore]
+    //     public double NumCores { get; set; }
+    //     public double CpuLoad { get; set; }
+    //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class Ignore : Attribute { };
 }

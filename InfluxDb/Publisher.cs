@@ -142,7 +142,11 @@ namespace InfluxDb
             switch (_onFull)
             {
                 case OnFull.DropOldest:
-                    do { _points.RemoveFromFront(); } while (_points.Count > _maxSize);
+                    do
+                    {
+                        PointValue p = _points.RemoveFromFront();
+                        if (_points.Count > 0) _points[0].MergeWithOlder(p);
+                    } while (_points.Count > _maxSize);
                     break;
                 default:
                     throw new NotImplementedException("OnFull = " + _onFull);

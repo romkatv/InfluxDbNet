@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace InfluxDb
 {
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class Tag : Attribute { };
 
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Class | AttributeTargets.Struct)]
     public class Name : Attribute
     {
         public Name(string name)
@@ -20,6 +22,7 @@ namespace InfluxDb
         public string Value { get; private set; }
     };
 
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class Aggregated : Attribute
     {
         public Aggregated(Aggregation aggregation)
@@ -30,5 +33,6 @@ namespace InfluxDb
         public Aggregation Aggregation { get; private set; }
     }
 
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class Ignore : Attribute { };
 }

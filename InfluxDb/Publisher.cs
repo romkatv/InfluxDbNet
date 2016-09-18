@@ -89,18 +89,19 @@ namespace InfluxDb
             while (idx > 0 && _points[idx - 1].Timestamp > p.Timestamp) --idx;
             if (idx > 0 && _points[idx - 1].Timestamp == p.Timestamp)
             {
-                _points[idx - 1].Fields.MergeFrom(p.Fields);
+                p.MergeWithOlder(_points[idx - 1]);
+                _points[idx - 1] = p;
                 return;
             }
-            if (idx > 0 && idx < _points.Count && UselessMiddle(_points[idx - 1], p, _points[idx]))
+            if (idx > 0 && idx < _points.Count && TryAggregate(_points[idx - 1], p, _points[idx]))
             {
                 // The point is in between two existing points both of which are within _samplingPeriod.
                 return;
             }
             // Can we drop _points[idx - 1]?
-            bool uselessLeft = idx > 1 && UselessMiddle(_points[idx - 2], _points[idx - 1], p);
+            bool uselessLeft = idx > 1 && TryAggregate(_points[idx - 2], _points[idx - 1], p);
             // Can we drop _points[idx]?
-            bool uselessRight = idx + 1 < _points.Count && UselessMiddle(p, _points[idx], _points[idx + 1]);
+            bool uselessRight = idx + 1 < _points.Count && TryAggregate(p, _points[idx], _points[idx + 1]);
             if (uselessLeft && uselessRight)
             {
                 _points.RemoveAt(idx);
@@ -146,6 +147,15 @@ namespace InfluxDb
                 default:
                     throw new NotImplementedException("OnFull = " + _onFull);
             }
+        }
+
+        // If possible, merge p2 into p3. Then p2 can be dropped.
+        // Requires: p1.Timestamp <= p2.Timestamp <= p3.Timestamp.
+        bool TryAggregate(PointValue p1, PointValue p2, PointValue p3)
+        {
+            if (!UselessMiddle(p1, p2, p3)) return false;
+            p3.MergeWithOlder(p2);
+            return true;
         }
 
         // Can we drop p2?

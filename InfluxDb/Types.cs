@@ -66,22 +66,22 @@ namespace InfluxDb
             return Visit<object>((long v) => v, (double v) => v, (bool v) => v, (string v) => v);
         }
 
-        public void MergeFrom(Field other)
+        public void MergeWithOlder(Field older)
         {
-            Condition.Requires(other, "other").IsNotNull();
-            if (GetType() != other.GetType())
+            Condition.Requires(older, "older").IsNotNull();
+            if (GetType() != older.GetType())
             {
                 throw new ArgumentException(string.Format(
                         "Can't merge fields of different types: {0} vs {1}",
-                        Type().Name, other.Type().Name));
+                        Type().Name, older.Type().Name));
             }
-            if (_aggregation != other._aggregation)
+            if (_aggregation != older._aggregation)
             {
                 throw new ArgumentException(string.Format(
                     "Aggregation function must be the same for two values to be mergeable: {0} vs {1}",
-                    _aggregation, other._aggregation));
+                    _aggregation, older._aggregation));
             }
-            MergeFromImpl(other);
+            MergeWithOlderImpl(older);
         }
 
         public override string ToString()
@@ -106,7 +106,7 @@ namespace InfluxDb
             return Hash.HashWithSeed(Index(), Value());
         }
 
-        protected abstract void MergeFromImpl(Field other);
+        protected abstract void MergeWithOlderImpl(Field older);
 
         sealed class C0 : Field
         {
@@ -117,20 +117,20 @@ namespace InfluxDb
                 return v0.Invoke(Val);
             }
 
-            protected override void MergeFromImpl(Field other)
+            protected override void MergeWithOlderImpl(Field older)
             {
                 switch (_aggregation)
                 {
                     case Aggregation.Last:
                         break;
                     case Aggregation.Sum:
-                        Val += ((C0)other).Val;
+                        Val += ((C0)older).Val;
                         break;
                     case Aggregation.Min:
-                        Val = Math.Min(Val, ((C0)other).Val);
+                        Val = Math.Min(Val, ((C0)older).Val);
                         break;
                     case Aggregation.Max:
-                        Val = Math.Min(Val, ((C0)other).Val);
+                        Val = Math.Min(Val, ((C0)older).Val);
                         break;
                 }
             }
@@ -144,20 +144,20 @@ namespace InfluxDb
                 return v1.Invoke(Val);
             }
 
-            protected override void MergeFromImpl(Field other)
+            protected override void MergeWithOlderImpl(Field older)
             {
                 switch (_aggregation)
                 {
                     case Aggregation.Last:
                         break;
                     case Aggregation.Sum:
-                        Val += ((C1)other).Val;
+                        Val += ((C1)older).Val;
                         break;
                     case Aggregation.Min:
-                        Val = Math.Min(Val, ((C1)other).Val);
+                        Val = Math.Min(Val, ((C1)older).Val);
                         break;
                     case Aggregation.Max:
-                        Val = Math.Min(Val, ((C1)other).Val);
+                        Val = Math.Min(Val, ((C1)older).Val);
                         break;
                 }
             }
@@ -171,20 +171,20 @@ namespace InfluxDb
                 return v2.Invoke(Val);
             }
 
-            protected override void MergeFromImpl(Field other)
+            protected override void MergeWithOlderImpl(Field older)
             {
                 switch (_aggregation)
                 {
                     case Aggregation.Last:
                         break;
                     case Aggregation.Sum:
-                        Val = Val || ((C2)other).Val;
+                        Val = Val || ((C2)older).Val;
                         break;
                     case Aggregation.Min:
-                        Val = Val && ((C2)other).Val;
+                        Val = Val && ((C2)older).Val;
                         break;
                     case Aggregation.Max:
-                        Val = Val || ((C2)other).Val;
+                        Val = Val || ((C2)older).Val;
                         break;
                 }
             }
@@ -198,9 +198,9 @@ namespace InfluxDb
                 return v3.Invoke(Val);
             }
 
-            protected override void MergeFromImpl(Field other)
+            protected override void MergeWithOlderImpl(Field older)
             {
-                string s = ((C3)other).Val;
+                string s = ((C3)older).Val;
                 switch (_aggregation)
                 {
                     case Aggregation.Last:
@@ -229,6 +229,31 @@ namespace InfluxDb
     {
         public DateTime Timestamp { get; set; }
         public Dictionary<string, Field> Fields { get; set; }
+
+        // Mutates `this` but not `older`.
+        // WARNING: `this` aliases `older`.
+        public void MergeWithOlder(PointValue older)
+        {
+            Condition.Requires(older.Timestamp, "older.Timestamp").IsLessOrEqual(Timestamp);
+            if (older.Fields == null) return;
+            if (Fields == null)
+            {
+                Fields = older.Fields;
+                return;
+            }
+            foreach (var elem in older.Fields)
+            {
+                Field f;
+                if (Fields.TryGetValue(elem.Key, out f) && f != null)
+                {
+                    f.MergeWithOlder(elem.Value);
+                }
+                else
+                {
+                    Fields[elem.Key] = elem.Value;
+                }
+            }
+        }
     }
 
     public class Point

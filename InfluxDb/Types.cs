@@ -130,7 +130,7 @@ namespace InfluxDb
                         Val = Math.Min(Val, ((C0)older).Val);
                         break;
                     case Aggregation.Max:
-                        Val = Math.Min(Val, ((C0)older).Val);
+                        Val = Math.Max(Val, ((C0)older).Val);
                         break;
                 }
             }
@@ -157,7 +157,7 @@ namespace InfluxDb
                         Val = Math.Min(Val, ((C1)older).Val);
                         break;
                     case Aggregation.Max:
-                        Val = Math.Min(Val, ((C1)older).Val);
+                        Val = Math.Max(Val, ((C1)older).Val);
                         break;
                 }
             }

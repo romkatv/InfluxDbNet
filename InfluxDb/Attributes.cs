@@ -19,4 +19,14 @@ namespace InfluxDb
 
         public string Value { get; private set; }
     };
+
+    public class Aggregated : Attribute
+    {
+        public Aggregated(Aggregation aggregation)
+        {
+            Aggregation = aggregation;
+        }
+
+        public Aggregation Aggregation { get; private set; }
+    }
 }

@@ -41,27 +41,39 @@ namespace InfluxDb
             // Extract public static and instance fields.
             foreach (FieldInfo x in t.GetFields(flags))
             {
-                if (x.GetCustomAttribute<Tag>() == null)
-                {
-                    AddFieldExtractor(Name(x), x.FieldType, Getter(x.Name, t, x.FieldType), cache);
-                }
-                else
-                {
-                    AddTagExtractor(Name(x), Getter(x.Name, t, x.FieldType));
-                }
+                AddExtractor(x, t, cache);
             }
             // Extract public static and instance properties.
             foreach (PropertyInfo x in t.GetProperties(flags))
             {
-                if (!x.CanRead) continue;
-                if (x.GetCustomAttribute<Tag>() == null)
-                {
-                    AddFieldExtractor(Name(x), x.PropertyType, Getter(x.Name, t, x.PropertyType), cache);
-                }
-                else
-                {
-                    AddTagExtractor(Name(x), Getter(x.Name, t, x.PropertyType));
-                }
+                AddExtractor(x, t, cache);
+            }
+        }
+
+        void AddExtractor(MemberInfo member, Type t, Dictionary<Type, MemberExtractor> cache)
+        {
+            Type fieldType;
+            if (member is PropertyInfo)
+            {
+                var prop = (PropertyInfo)member;
+                if (!prop.CanRead) return;
+                fieldType = prop.PropertyType;
+            }
+            else
+            {
+                var field = (FieldInfo)member;
+                fieldType = field.FieldType;
+            }
+
+            if (member.GetCustomAttribute<Tag>() == null)
+            {
+                AddFieldExtractor(Name(member), fieldType, Aggregation(member), Getter(member.Name, t, fieldType), cache);
+            }
+            else
+            {
+                if (member.GetCustomAttribute<Aggregated>() != null)
+                    throw new Exception("Attributes Tag and Aggregated are incompatible");
+                AddTagExtractor(Name(member), Getter(member.Name, t, fieldType));
             }
         }
 
@@ -74,7 +86,7 @@ namespace InfluxDb
             });
         }
 
-        void AddFieldExtractor(string name, Type t, Func<object, object> get, Dictionary<Type, MemberExtractor> cache)
+        void AddFieldExtractor(string name, Type t, Aggregation agg, Func<object, object> get, Dictionary<Type, MemberExtractor> cache)
         {
             // Simple field type.
             Type field = FieldType(ValueType(t));
@@ -83,7 +95,7 @@ namespace InfluxDb
                 Func<object, Field> make;
                 {
                     ParameterExpression obj = E.Parameter(typeof(object), "obj");
-                    E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field));
+                    E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field), E.Constant(agg));
                     make = E.Lambda<Func<object, Field>>(e, obj).Compile();
                 }
                 _extractors[1].Add((obj, onTag, onField) =>
@@ -141,6 +153,7 @@ namespace InfluxDb
                 Condition.Requires(flags.HasFlag(BindingFlags.GetProperty)).IsTrue();
                 x = E.Property(null, container, name);
             }
+
             if (IsNullable(member))
             {
                 x = E.Condition(E.Property(x, "HasValue"), E.Convert(E.Property(x, "Value"), typeof(object)), E.Constant(null));
@@ -172,6 +185,12 @@ namespace InfluxDb
         {
             return member.GetCustomAttribute<Name>()?.Value ??
                 Strings.CamelCaseToUnderscores(member.Name).ToLower();
+        }
+
+        static Aggregation Aggregation(MemberInfo member)
+        {
+            var attr = member.GetCustomAttribute<Aggregated>();
+            return attr == null ? InfluxDb.Aggregation.Last : attr.Aggregation;
         }
 
         static bool IsNullable(Type t)

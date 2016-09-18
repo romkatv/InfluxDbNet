@@ -29,4 +29,6 @@ namespace InfluxDb
 
         public Aggregation Aggregation { get; private set; }
     }
+
+    public class Ignore : Attribute { };
 }

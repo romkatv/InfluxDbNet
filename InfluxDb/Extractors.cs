@@ -52,6 +52,8 @@ namespace InfluxDb
 
         void AddExtractor(MemberInfo member, Type t, Dictionary<Type, MemberExtractor> cache)
         {
+            if (member.GetCustomAttribute<Ignore>() != null) return;
+
             Type fieldType;
             if (member is PropertyInfo)
             {

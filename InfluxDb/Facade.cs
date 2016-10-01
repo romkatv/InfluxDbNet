@@ -3,6 +3,7 @@ using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ namespace InfluxDb
 {
     public class Facade
     {
-        readonly Overrides _overrides = new Overrides();
+        readonly ThreadLocal<Overrides> _overrides = new ThreadLocal<Overrides>(() => new Overrides());
         readonly ISink _sink;
 
         public Facade(ISink sink)
@@ -25,13 +26,13 @@ namespace InfluxDb
 
         public void Push<TColumns>(string name, TColumns cols)
         {
-            Push(name, _overrides.UtcNow, cols);
+            Push(name, _overrides.Value.UtcNow, cols);
         }
 
         public void Push<TColumns>(string name, DateTime t, TColumns cols)
         {
             // It's OK to mutate `data`.
-            TagsAndFields data = _overrides.TagsAndFields();
+            TagsAndFields data = _overrides.Value.TagsAndFields();
             Extract(cols, ref data.Tags, ref data.Fields);
             var p = new Point()
             {
@@ -54,21 +55,21 @@ namespace InfluxDb
 
         public IDisposable At(DateTime t)
         {
-            return _overrides.Push(t, null);
+            return _overrides.Value.Push(t, null);
         }
 
         public IDisposable With<TColumns>(DateTime t, TColumns cols)
         {
             var data = new TagsAndFields();
             Extract(cols, ref data.Tags, ref data.Fields);
-            return _overrides.Push(t, data);
+            return _overrides.Value.Push(t, data);
         }
 
         public IDisposable With<TColumns>(TColumns cols)
         {
             var data = new TagsAndFields();
             Extract(cols, ref data.Tags, ref data.Fields);
-            return _overrides.Push(null, data);
+            return _overrides.Value.Push(null, data);
         }
 
         static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)
@@ -109,6 +110,8 @@ namespace InfluxDb
 
     class Overrides
     {
+        // Even though Overrides is used only through ThreadLocal, it has to use synchronization because
+        // we can't enforce that Override.Dispose() is always called on the same thread that produced the override.
         readonly object _monitor = new object();
         readonly LinkedList<DateTime> _time = new LinkedList<DateTime>();
         readonly LinkedList<TagsAndFields> _data = new LinkedList<TagsAndFields>();

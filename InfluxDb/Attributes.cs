@@ -17,7 +17,7 @@ namespace InfluxDb
     //     public double CpuLoad { get; set; }
     //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-    public class Tag : Attribute { };
+    public class TagAttribute : Attribute { };
 
     // When applied to properties and fields, overrides the name of the tag/field in InfluxDb.
     // When applied to classes and structs, overrides the name of the metric in InfluxDb.
@@ -28,9 +28,9 @@ namespace InfluxDb
     //     public double CpuLoad { get; set; }
     //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Class | AttributeTargets.Struct)]
-    public class Name : Attribute
+    public class NameAttribute : Attribute
     {
-        public Name(string name)
+        public NameAttribute(string name)
         {
             Condition.Requires(name, "name").IsNotNullOrEmpty();
             Value = name;
@@ -42,17 +42,14 @@ namespace InfluxDb
     // When points get deleted due to down-sampling or overfull buffer, fields (but not tags) get
     // aggregated. This attribute can be used to specify the aggregation algorithm. The default is `Last`.
     //
-    // When applied to properties and fields, overrides the name of the tag/field in InfluxDb.
-    // When applied to classes and structs, overrides the name of the metric in InfluxDb.
-    //
     //   class Perf {
     //     [Aggregated(Aggregation.Sum)]
     //     public int PageFaults { get; set; }
     //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-    public class Aggregated : Attribute
+    public class AggregatedAttribute : Attribute
     {
-        public Aggregated(Aggregation aggregation)
+        public AggregatedAttribute(Aggregation aggregation)
         {
             Aggregation = aggregation;
         }
@@ -68,5 +65,5 @@ namespace InfluxDb
     //     public double CpuLoad { get; set; }
     //   };
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-    public class Ignore : Attribute { };
+    public class IgnoreAttribute : Attribute { };
 }

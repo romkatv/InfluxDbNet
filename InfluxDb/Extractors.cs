@@ -16,7 +16,7 @@ namespace InfluxDb
     static class MeasurementExtractor<T>
     {
         public static readonly string Name =
-            typeof(T).GetCustomAttribute<Name>()?.Value ??
+            typeof(T).GetCustomAttribute<NameAttribute>()?.Value ??
             Strings.CamelCaseToUnderscores(typeof(T).Name).ToLower();
     }
 
@@ -52,7 +52,7 @@ namespace InfluxDb
 
         void AddExtractor(MemberInfo member, Type t, Dictionary<Type, MemberExtractor> cache)
         {
-            if (member.GetCustomAttribute<Ignore>() != null) return;
+            if (member.GetCustomAttribute<IgnoreAttribute>() != null) return;
 
             Type fieldType;
             if (member is PropertyInfo)
@@ -67,13 +67,13 @@ namespace InfluxDb
                 fieldType = field.FieldType;
             }
 
-            if (member.GetCustomAttribute<Tag>() == null)
+            if (member.GetCustomAttribute<TagAttribute>() == null)
             {
                 AddFieldExtractor(Name(member), fieldType, Aggregation(member), Getter(member.Name, t, fieldType), cache);
             }
             else
             {
-                if (member.GetCustomAttribute<Aggregated>() != null)
+                if (member.GetCustomAttribute<AggregatedAttribute>() != null)
                     throw new Exception("Attributes Tag and Aggregated are incompatible");
                 AddTagExtractor(Name(member), Getter(member.Name, t, fieldType));
             }
@@ -185,13 +185,13 @@ namespace InfluxDb
 
         static string Name(MemberInfo member)
         {
-            return member.GetCustomAttribute<Name>()?.Value ??
+            return member.GetCustomAttribute<NameAttribute>()?.Value ??
                 Strings.CamelCaseToUnderscores(member.Name).ToLower();
         }
 
         static Aggregation Aggregation(MemberInfo member)
         {
-            var attr = member.GetCustomAttribute<Aggregated>();
+            var attr = member.GetCustomAttribute<AggregatedAttribute>();
             return attr == null ? InfluxDb.Aggregation.Last : attr.Aggregation;
         }
 

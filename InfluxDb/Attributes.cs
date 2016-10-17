@@ -57,6 +57,28 @@ namespace InfluxDb
         public Aggregation Aggregation { get; private set; }
     }
 
+
+    // Shortcuts for different agregation types.
+    public class LastAttribute : AggregatedAttribute
+    {
+        public LastAttribute() : base(Aggregation.Last) { }
+    }
+
+    public class SumAttribute : AggregatedAttribute
+    {
+        public SumAttribute() : base(Aggregation.Sum) { }
+    }
+
+    public class MaxAttribute : AggregatedAttribute
+    {
+        public MaxAttribute() : base(Aggregation.Max) { }
+    }
+
+    public class MinAttribute : AggregatedAttribute
+    {
+        public MinAttribute() : base(Aggregation.Min) { }
+    }
+
     // When applied to properties and fields, instructs the library to ignore them.
     //
     //   class Perf {

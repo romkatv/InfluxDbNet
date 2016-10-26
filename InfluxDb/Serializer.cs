@@ -90,7 +90,7 @@ namespace InfluxDb
 
         static void WriteTimestamp(DateTime t, StringBuilder sb)
         {
-            long ns = (long)(1000000 * (t - Epoch).TotalMilliseconds);
+            long ns = 1000000000L / TimeSpan.TicksPerSecond * (t - Epoch).Ticks;
             sb.Append(ns);
         }
 

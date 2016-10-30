@@ -90,7 +90,10 @@ namespace InfluxDb
 
         static void WriteTimestamp(DateTime t, StringBuilder sb)
         {
-            long ns = 1000000000L / TimeSpan.TicksPerSecond * (t - Epoch).Ticks;
+            // This code works like a static assert.
+            // It won't compile if TimeSpan.TicksPerSecond isn't equal to 10000000.
+            const uint x = TimeSpan.TicksPerSecond == 10000000 ? 100 : -1;
+            long ns = x * (t - Epoch).Ticks;
             sb.Append(ns);
         }
 

@@ -42,7 +42,7 @@ namespace Example
     [Name("trades")]
     class TradeData
     {
-        [Name("realized_pnl"), Aggregated(Aggregation.Sum)]
+        [Name("realized_pnl"), Sum]
         public double RealizedPnL { get; set; }
         [Ignore]
         public int Internal { get; set; }

@@ -47,7 +47,7 @@ namespace InfluxDb
         /// </summary>
         public int Index()
         {
-            return Visit((T0) => 0, (T1) => 1, (T2) => 2, (T3) => 3);
+            return Visit((v) => 0, (v) => 1, (v) => 2, (v) => 3);
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace InfluxDb
         /// </summary>
         public Type Type()
         {
-            return Visit((T0) => typeof(long), (T1) => typeof(double), (T2) => typeof(bool), (T3) => typeof(string));
+            return Visit((v) => typeof(long), (v) => typeof(double), (v) => typeof(bool), (v) => typeof(string));
         }
 
         /// <summary>
@@ -64,6 +64,12 @@ namespace InfluxDb
         public object Value()
         {
             return Visit<object>((long v) => v, (double v) => v, (bool v) => v, (string v) => v);
+        }
+
+        public Field Clone()
+        {
+            return Visit((long v) => New(v, _aggregation), (double v) => New(v, _aggregation),
+                         (bool v) => New(v, _aggregation), (string v) => New(v, _aggregation));
         }
 
         public void MergeWithOlder(Field older)
@@ -229,6 +235,20 @@ namespace InfluxDb
     {
         public DateTime Timestamp { get; set; }
         public Dictionary<string, Field> Fields { get; set; }
+
+        public PointValue Clone()
+        {
+            var res = new PointValue() { Timestamp = Timestamp };
+            if (Fields != null)
+            {
+                res.Fields = new Dictionary<string, Field>();
+                foreach (var elem in Fields)
+                {
+                    res.Fields.Add(elem.Key, elem.Value.Clone());
+                }
+            }
+            return res;
+        }
 
         // Mutates `this` but not `older`.
         // WARNING: `this` aliases `older`.

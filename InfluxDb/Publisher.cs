@@ -24,9 +24,9 @@ namespace InfluxDb
         public TimeSpan SamplingPeriod { get; set; }
 
         // Store at most this many points in memory per key. When the buffer fills up,
-        // try to flush. If we are already flushing but there are still to many points,
+        // try to flush. If we are already flushing but there are still too many points,
         // do what OnFull says.
-        // Negative means infinity.
+        // Negative means infinity. Zero and one are invalid.
         public int MaxPointsPerSeries { get; set; }
 
         // Send at most this many points per HTTP POST request to InfluxDb.
@@ -64,11 +64,16 @@ namespace InfluxDb
         readonly TimeSpan _samplingPeriod;
         // Invariant: _maxSize < 0 || _points.Count <= _maxSize.
         readonly Nito.Deque<PointValue> _points = new Nito.Deque<PointValue>();
+        // The last consumed point. Not null.
+        PointValue _bottom = new PointValue() { Timestamp = new DateTime(), Fields = new Dictionary<string, Field>() };
+        // Has _bottom been modified?
+        bool _bottomDirty = false;
 
         // The key is immutable: neither PointBuffer nor the caller may change it.
         public PointBuffer(PointKey key, int maxSize, OnFull onFull, TimeSpan samplingPeriod)
         {
             Condition.Requires(key, "key").IsNotNull();
+            Condition.Requires(maxSize, "maxSize").IsNotInRange(0, 1);
             Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
             _key = key;
             _maxSize = maxSize;
@@ -77,12 +82,25 @@ namespace InfluxDb
         }
 
         // Guarantees: maxSize < 0 || Count <= maxSize (maxSize is the constructor argument).
-        public int Count { get { return _points.Count; } }
+        public int Count { get { return _points.Count + (_bottomDirty ? 1 : 0); } }
 
         // The caller must not mutate `p`. PointBuffer may mutate it.
         public void Add(PointValue p)
         {
             Condition.Requires(p, "p").IsNotNull();
+            if (p.Timestamp <= _bottom.Timestamp)
+            {
+                if (p.Timestamp == _bottom.Timestamp)
+                {
+                    var tmp = p;
+                    p = _bottom;
+                    _bottom = tmp;
+                }
+                _bottom.MergeWithOlder(p);
+                _bottomDirty = true;
+                MaybeCompact();
+                return;
+            }
             int idx = _points.Count;
             // This is essentially insertion sort.
             // Since timestamps usually come in asceding order, it should be fast.
@@ -126,17 +144,24 @@ namespace InfluxDb
         // The caller must not mutate Point.Key.
         public void ConsumeAppendOldest(int n, List<Point> target)
         {
-            n = n < 0 ? _points.Count : Math.Min(n, _points.Count);
+            n = n < 0 ? Count : Math.Min(n, Count);
+            if (n == 0) return;
+            if (_bottomDirty)
+            {
+                target.Add(new Point() { Key = _key, Value = _bottom });
+                _bottomDirty = false;
+                --n;
+            }
             while (n-- > 0)
             {
-                target.Add(new Point() { Key = _key, Value = _points.First() });
-                _points.RemoveFromFront();
+                target.Add(new Point() { Key = _key, Value = _points.RemoveFromFront() });
             }
+            _bottom = target.Last().Value.Clone();
         }
 
         void MaybeCompact()
         {
-            if (_maxSize < 0 || _points.Count <= _maxSize) return;
+            if (_maxSize < 0 || Count <= _maxSize) return;
             _log.LogEvery(TimeSpan.FromSeconds(10), LogLevel.Warn,
                           "Dropping statistics on the floor. Check your InfluxDb configuration.");
             switch (_onFull)
@@ -145,8 +170,9 @@ namespace InfluxDb
                     do
                     {
                         PointValue p = _points.RemoveFromFront();
-                        if (_points.Count > 0) _points[0].MergeWithOlder(p);
-                    } while (_points.Count > _maxSize);
+                        // The constructor guarantees that _maxSize > 1. Hence _points can't be empty.
+                        _points[0].MergeWithOlder(p);
+                    } while (Count > _maxSize);
                     break;
                 default:
                     throw new NotImplementedException("OnFull = " + _onFull);
@@ -282,15 +308,12 @@ namespace InfluxDb
             Condition.Requires(_batch, "_batch").IsNull();
             Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
             _batch = new List<Point>();
-            var empty = new List<PointKey>();
             foreach (var kv in _points)
             {
                 kv.Value.ConsumeAppendOldest(
                     _cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
-                if (kv.Value.Count == 0) empty.Add(kv.Key);
             }
-            foreach (PointKey key in empty) _points.Remove(key);
-            if (_points.Count == 0)
+            if (_points.Values.All((buf) => buf.Count == 0))
             {
                 foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
             }

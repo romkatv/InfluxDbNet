@@ -97,6 +97,26 @@ namespace Benchmarks
     public class BM_Timeseries
     {
         long _ticks = 0;
+        readonly InfluxDb.Point _metric_1_0_1;
+        readonly InfluxDb.Point _metric_1_1_1;
+        readonly InfluxDb.Point _metric_4_0_1;
+        readonly InfluxDb.Point _metric_4_0_4;
+        readonly InfluxDb.Point _metric_4_1_1;
+        readonly InfluxDb.Point _metric_4_1_4;
+        readonly InfluxDb.Point _metric_4_4_1;
+        readonly InfluxDb.Point _metric_4_4_4;
+        readonly InfluxDb.Point _metric_16_0_1;
+        readonly InfluxDb.Point _metric_16_0_4;
+        readonly InfluxDb.Point _metric_16_0_16;
+        readonly InfluxDb.Point _metric_16_1_1;
+        readonly InfluxDb.Point _metric_16_1_4;
+        readonly InfluxDb.Point _metric_16_1_16;
+        readonly InfluxDb.Point _metric_16_4_1;
+        readonly InfluxDb.Point _metric_16_4_4;
+        readonly InfluxDb.Point _metric_16_4_16;
+        readonly InfluxDb.Point _metric_16_16_1;
+        readonly InfluxDb.Point _metric_16_16_4;
+        readonly InfluxDb.Point _metric_16_16_16;
 
         public BM_Timeseries()
         {
@@ -110,21 +130,41 @@ namespace Benchmarks
             };
             var pub = new InfluxDb.Publisher(new NullBackend(), cfg);
             InfluxDb.Timeseries.SetSink(pub);
+            _metric_1_0_1 = Extract_1_0_1();
+            _metric_1_1_1 = Extract_1_1_1();
+            _metric_4_0_1 = Extract_4_0_1();
+            _metric_4_0_4 = Extract_4_0_4();
+            _metric_4_1_1 = Extract_4_1_1();
+            _metric_4_1_4 = Extract_4_1_4();
+            _metric_4_4_1 = Extract_4_4_1();
+            _metric_4_4_4 = Extract_4_4_4();
+            _metric_16_0_1 = Extract_16_0_1();
+            _metric_16_0_4 = Extract_16_0_4();
+            _metric_16_0_16 = Extract_16_0_16();
+            _metric_16_1_1 = Extract_16_1_1();
+            _metric_16_1_4 = Extract_16_1_4();
+            _metric_16_1_16 = Extract_16_1_16();
+            _metric_16_4_1 = Extract_16_4_1();
+            _metric_16_4_4 = Extract_16_4_4();
+            _metric_16_4_16 = Extract_16_4_16();
+            _metric_16_16_1 = Extract_16_16_1();
+            _metric_16_16_4 = Extract_16_16_4();
+            _metric_16_16_16 = Extract_16_16_16();
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_1_0_1()
+        public InfluxDb.Point Extract_1_0_1()
         {
-            Push(new Metric1()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric1()
             {
                 Field1 = 1.0,
             });
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_1_1_1()
+        public InfluxDb.Point Extract_1_1_1()
         {
-            Push(new Metric1()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric1()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -132,18 +172,18 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_0_1()
+        public InfluxDb.Point Extract_4_0_1()
         {
-            Push(new Metric4()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
             {
                 Field1 = 1.0,
             });
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_0_4()
+        public InfluxDb.Point Extract_4_0_4()
         {
-            Push(new Metric4()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -153,9 +193,9 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_1_1()
+        public InfluxDb.Point Extract_4_1_1()
         {
-            Push(new Metric4()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -163,9 +203,9 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_1_4()
+        public InfluxDb.Point Extract_4_1_4()
         {
-            Push(new Metric4()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -176,9 +216,9 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_4_1()
+        public InfluxDb.Point Extract_4_4_1()
         {
-            Push(new Metric4()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -189,9 +229,9 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_4_4_4()
+        public InfluxDb.Point Extract_4_4_4()
         {
-            Push(new Metric4()
+            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -201,256 +241,370 @@ namespace Benchmarks
                 Field2 = 2.0,
                 Field3 = 3.0,
                 Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_0_1()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Field1 = 1.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_0_4()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_0_16()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+                Field5 = 5.0,
+                Field6 = 6.0,
+                Field7 = 7.0,
+                Field8 = 8.0,
+                Field9 = 9.0,
+                Field10 = 10.0,
+                Field11 = 11.0,
+                Field12 = 12.0,
+                Field13 = 13.0,
+                Field14 = 14.0,
+                Field15 = 15.0,
+                Field16 = 16.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_1_1()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Field1 = 1.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_1_4()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_1_16()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+                Field5 = 5.0,
+                Field6 = 6.0,
+                Field7 = 7.0,
+                Field8 = 8.0,
+                Field9 = 9.0,
+                Field10 = 10.0,
+                Field11 = 11.0,
+                Field12 = 12.0,
+                Field13 = 13.0,
+                Field14 = 14.0,
+                Field15 = 15.0,
+                Field16 = 16.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_4_1()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Field1 = 1.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_4_4()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_4_16()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+                Field5 = 5.0,
+                Field6 = 6.0,
+                Field7 = 7.0,
+                Field8 = 8.0,
+                Field9 = 9.0,
+                Field10 = 10.0,
+                Field11 = 11.0,
+                Field12 = 12.0,
+                Field13 = 13.0,
+                Field14 = 14.0,
+                Field15 = 15.0,
+                Field16 = 16.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_16_1()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Tag5 = "Tag5",
+                Tag6 = "Tag6",
+                Tag7 = "Tag7",
+                Tag8 = "Tag8",
+                Tag9 = "Tag9",
+                Tag10 = "Tag10",
+                Tag11 = "Tag11",
+                Tag12 = "Tag12",
+                Tag13 = "Tag13",
+                Tag14 = "Tag14",
+                Tag15 = "Tag15",
+                Tag16 = "Tag16",
+                Field1 = 1.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_16_4()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Tag5 = "Tag5",
+                Tag6 = "Tag6",
+                Tag7 = "Tag7",
+                Tag8 = "Tag8",
+                Tag9 = "Tag9",
+                Tag10 = "Tag10",
+                Tag11 = "Tag11",
+                Tag12 = "Tag12",
+                Tag13 = "Tag13",
+                Tag14 = "Tag14",
+                Tag15 = "Tag15",
+                Tag16 = "Tag16",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.Point Extract_16_16_16()
+        {
+            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Tag5 = "Tag5",
+                Tag6 = "Tag6",
+                Tag7 = "Tag7",
+                Tag8 = "Tag8",
+                Tag9 = "Tag9",
+                Tag10 = "Tag10",
+                Tag11 = "Tag11",
+                Tag12 = "Tag12",
+                Tag13 = "Tag13",
+                Tag14 = "Tag14",
+                Tag15 = "Tag15",
+                Tag16 = "Tag16",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+                Field5 = 5.0,
+                Field6 = 6.0,
+                Field7 = 7.0,
+                Field8 = 8.0,
+                Field9 = 9.0,
+                Field10 = 10.0,
+                Field11 = 11.0,
+                Field12 = 12.0,
+                Field13 = 13.0,
+                Field14 = 14.0,
+                Field15 = 15.0,
+                Field16 = 16.0,
             });
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_1()
         {
-            Push(new Metric16()
-            {
-                Field1 = 1.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_16_0_4()
-        {
-            Push(new Metric16()
-            {
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_16_0_16()
-        {
-            Push(new Metric16()
-            {
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-                Field5 = 5.0,
-                Field6 = 6.0,
-                Field7 = 7.0,
-                Field8 = 8.0,
-                Field9 = 9.0,
-                Field10 = 10.0,
-                Field11 = 11.0,
-                Field12 = 12.0,
-                Field13 = 13.0,
-                Field14 = 14.0,
-                Field15 = 15.0,
-                Field16 = 16.0,
-            });
+            Push(_metric_16_0_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_1()
         {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Field1 = 1.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_16_1_4()
-        {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_16_1_16()
-        {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-                Field5 = 5.0,
-                Field6 = 6.0,
-                Field7 = 7.0,
-                Field8 = 8.0,
-                Field9 = 9.0,
-                Field10 = 10.0,
-                Field11 = 11.0,
-                Field12 = 12.0,
-                Field13 = 13.0,
-                Field14 = 14.0,
-                Field15 = 15.0,
-                Field16 = 16.0,
-            });
+            Push(_metric_16_1_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_1()
         {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Field1 = 1.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_16_4_4()
-        {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public void Push_16_4_16()
-        {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-                Field5 = 5.0,
-                Field6 = 6.0,
-                Field7 = 7.0,
-                Field8 = 8.0,
-                Field9 = 9.0,
-                Field10 = 10.0,
-                Field11 = 11.0,
-                Field12 = 12.0,
-                Field13 = 13.0,
-                Field14 = 14.0,
-                Field15 = 15.0,
-                Field16 = 16.0,
-            });
+            Push(_metric_16_4_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_1()
         {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Tag5 = "Tag5",
-                Tag6 = "Tag6",
-                Tag7 = "Tag7",
-                Tag8 = "Tag8",
-                Tag9 = "Tag9",
-                Tag10 = "Tag10",
-                Tag11 = "Tag11",
-                Tag12 = "Tag12",
-                Tag13 = "Tag13",
-                Tag14 = "Tag14",
-                Tag15 = "Tag15",
-                Tag16 = "Tag16",
-                Field1 = 1.0,
-            });
+            Push(_metric_16_16_1);
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void Push_16_0_4()
+        {
+            Push(_metric_16_0_4);
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void Push_16_1_4()
+        {
+            Push(_metric_16_1_4);
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void Push_16_4_4()
+        {
+            Push(_metric_16_4_4);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_4()
         {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Tag5 = "Tag5",
-                Tag6 = "Tag6",
-                Tag7 = "Tag7",
-                Tag8 = "Tag8",
-                Tag9 = "Tag9",
-                Tag10 = "Tag10",
-                Tag11 = "Tag11",
-                Tag12 = "Tag12",
-                Tag13 = "Tag13",
-                Tag14 = "Tag14",
-                Tag15 = "Tag15",
-                Tag16 = "Tag16",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-            });
+            Push(_metric_16_16_4);
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void Push_16_0_16()
+        {
+            Push(_metric_16_0_16);
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void Push_16_1_16()
+        {
+            Push(_metric_16_1_16);
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void Push_16_4_16()
+        {
+            Push(_metric_16_4_16);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_16()
         {
-            Push(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Tag5 = "Tag5",
-                Tag6 = "Tag6",
-                Tag7 = "Tag7",
-                Tag8 = "Tag8",
-                Tag9 = "Tag9",
-                Tag10 = "Tag10",
-                Tag11 = "Tag11",
-                Tag12 = "Tag12",
-                Tag13 = "Tag13",
-                Tag14 = "Tag14",
-                Tag15 = "Tag15",
-                Tag16 = "Tag16",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-                Field5 = 5.0,
-                Field6 = 6.0,
-                Field7 = 7.0,
-                Field8 = 8.0,
-                Field9 = 9.0,
-                Field10 = 10.0,
-                Field11 = 11.0,
-                Field12 = 12.0,
-                Field13 = 13.0,
-                Field14 = 14.0,
-                Field15 = 15.0,
-                Field16 = 16.0,
-            });
+            Push(_metric_16_16_16);
         }
 
-        void Push<TCols>(TCols cols)
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void With_16_16_16()
+        {
+            InfluxDb.Timeseries.With(new DateTime(1), _metric_16_16_16).Dispose();
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void With_16_0_1_Push_16_0_1()
+        {
+            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_0_1))
+            {
+                Push(_metric_16_0_1);
+            }
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void With_16_0_1_Push_16_16_16()
+        {
+            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_0_1))
+            {
+                Push(_metric_16_16_16);
+            }
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void With_16_16_16_Push_16_0_1()
+        {
+            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_16_16))
+            {
+                Push(_metric_16_0_1);
+            }
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public void With_16_16_16_Push_16_16_16()
+        {
+            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_16_16))
+            {
+                Push(_metric_16_16_16);
+            }
+        }
+
+        void Push(InfluxDb.Point p)
         {
             // Ensure that all timestamps are distinct.
-            InfluxDb.Timeseries.Push(new DateTime(++_ticks), cols);
+            InfluxDb.Timeseries.Push(new DateTime(++_ticks), p);
         }
     }
 
@@ -462,45 +616,68 @@ namespace Benchmarks
             // BenchmarkDotNet.Core=v0.9.9.0
             // OS=Microsoft Windows NT 6.2.9200.0
             // Processor=Intel(R) Core(TM) i7 CPU 860 2.80GHz, ProcessorCount=8
-            // Frequency=2742883 ticks, Resolution=364.5799 ns, Timer=TSC
+            // Frequency=2742886 ticks, Resolution=364.5795 ns, Timer=TSC
             // CLR=MS.NET 4.0.30319.42000, Arch=32-bit RELEASE
             // GC=Concurrent Workstation
-            // JitModules=clrjit-v4.6.1080.0
+            // JitModules=clrjit-v4.6.1586.0
             //
             // Type=BM_Timeseries  Mode=Throughput
             //
-            //         Method |     Median |    StdDev |
-            // -------------- |----------- |---------- |
-            //     Push_1_0_1 |  2.5959 us | 0.1208 us |
-            //     Push_1_1_1 |  2.8539 us | 0.0910 us |
-            //     Push_4_0_1 |  2.7912 us | 0.1773 us |
-            //     Push_4_0_4 |  4.3179 us | 0.1576 us |
-            //     Push_4_1_1 |  2.9188 us | 0.1563 us |
-            //     Push_4_1_4 |  4.4506 us | 0.1186 us |
-            //     Push_4_4_1 |  3.6311 us | 0.1551 us |
-            //     Push_4_4_4 |  5.3141 us | 0.1669 us |
-            //    Push_16_0_1 |  3.3618 us | 0.1472 us |
-            //    Push_16_0_4 |  5.2516 us | 0.1854 us |
-            //   Push_16_0_16 | 10.2235 us | 0.4929 us |
-            //    Push_16_1_1 |  3.7248 us | 0.0931 us |
-            //    Push_16_1_4 |  5.4385 us | 0.2652 us |
-            //   Push_16_1_16 | 10.2315 us | 0.3020 us |
-            //    Push_16_4_1 |  4.5054 us | 0.1529 us |
-            //    Push_16_4_4 |  6.1313 us | 0.2707 us |
-            //   Push_16_4_16 | 10.8363 us | 0.2829 us |
-            //   Push_16_16_1 |  6.9902 us | 0.1678 us |
-            //   Push_16_16_4 |  8.6739 us | 0.2792 us |
-            //  Push_16_16_16 | 13.0362 us | 0.5730 us |
+            //                       Method |         Median |      StdDev |
+            // ---------------------------- |--------------- |------------ |
+            //                Extract_1_0_1 |    421.2679 ns |  31.1853 ns |
+            //                Extract_1_1_1 |    525.1546 ns |  50.1382 ns |
+            //                Extract_4_0_1 |    614.3559 ns |  20.1191 ns |
+            //                Extract_4_0_4 |  1,135.5698 ns |  50.4740 ns |
+            //                Extract_4_1_1 |    740.0135 ns |  14.1497 ns |
+            //                Extract_4_1_4 |  1,267.0784 ns |   9.4236 ns |
+            //                Extract_4_4_1 |  1,082.5380 ns |   5.3271 ns |
+            //                Extract_4_4_4 |  1,594.3719 ns |  27.3335 ns |
+            //               Extract_16_0_1 |  1,325.2778 ns |   3.8002 ns |
+            //               Extract_16_0_4 |  1,889.8237 ns |   8.4880 ns |
+            //              Extract_16_0_16 |  3,680.8560 ns |  17.9167 ns |
+            //               Extract_16_1_1 |  1,458.1226 ns |  21.0654 ns |
+            //               Extract_16_1_4 |  2,001.0275 ns |  26.4922 ns |
+            //              Extract_16_1_16 |  3,990.8204 ns | 459.9830 ns |
+            //               Extract_16_4_1 |  1,850.6445 ns |  68.2333 ns |
+            //               Extract_16_4_4 |  2,458.2831 ns | 138.0780 ns |
+            //              Extract_16_4_16 |  4,531.0195 ns | 175.9461 ns |
+            //              Extract_16_16_1 |  2,848.3955 ns | 122.5068 ns |
+            //              Extract_16_16_4 |  3,569.7565 ns | 160.6673 ns |
+            //             Extract_16_16_16 |  5,680.0102 ns | 183.4657 ns |
+            //                  Push_16_0_1 |  2,654.0117 ns | 150.7405 ns |
+            //                  Push_16_1_1 |  2,989.9763 ns | 102.2369 ns |
+            //                  Push_16_4_1 |  3,489.3038 ns | 191.0437 ns |
+            //                 Push_16_16_1 |  6,256.8976 ns | 382.5689 ns |
+            //                  Push_16_0_4 |  3,215.5980 ns |  83.5083 ns |
+            //                  Push_16_1_4 |  3,545.3320 ns | 226.2567 ns |
+            //                  Push_16_4_4 |  4,188.2778 ns | 199.8327 ns |
+            //                 Push_16_16_4 |  6,390.2381 ns | 163.0985 ns |
+            //                 Push_16_0_16 |  5,043.0141 ns | 414.5678 ns |
+            //                 Push_16_1_16 |  5,513.6196 ns | 156.3707 ns |
+            //                 Push_16_4_16 |  6,269.1502 ns | 393.6358 ns |
+            //                Push_16_16_16 |  8,433.4710 ns |  48.7041 ns |
+            //                With_16_16_16 |    215.3515 ns |   8.9925 ns |
+            //      With_16_0_1_Push_16_0_1 |  2,944.1091 ns | 218.6547 ns |
+            //    With_16_0_1_Push_16_16_16 |  9,138.8091 ns |  71.1801 ns |
+            //    With_16_16_16_Push_16_0_1 |  9,377.6416 ns | 373.5109 ns |
+            //  With_16_16_16_Push_16_16_16 | 11,939.8617 ns | 116.1112 ns |
             //
-            // Note: Push_X_Y_Z measures the performance of Timeseries.Push(obj) where
+            //                ===[ Legend ]===
+            //
+            // Extract_1_0_1 measures the performance of Timeseries.Extrac(obj) where
             // typeof(obj) has X declared tags and X declared fields, and obj has Y set
             // tags and Z set fields.
             //
-            //           ===[ Conclusions ]===
+            // Push_X_Y_Z measures the performance of Timeseries.Push(p) where p is the result
+            // of Extract_X_Y_Z.
             //
-            // *   The number of declared tags and fields has little effect on performance.
-            // *   Timeseries.Push(obj) costs about 2 us plus 400 ns for each tag and field
-            //     that is actually set.
+            // Push_X_Y_Z measures the performance of Timeseries.With(p) where p is the result
+            // of Extract_X_Y_Z.
+            //
+            // With_A_B_C_Push_X_Y_Z measures the performance of Timeseries.With(q) followed by
+            // Timeseries.Push(s) where q and s are the results of Extract_A_B_C and Extract_X_Y_Z
+            // respectively.
             BenchmarkDotNet.Running.BenchmarkRunner.Run<BM_Timeseries>();
         }
     }

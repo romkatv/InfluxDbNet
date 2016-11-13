@@ -53,6 +53,40 @@ namespace InfluxDb
             Push(MeasurementExtractor<TColumns>.Name, t, cols);
         }
 
+        public void Push(string name, DateTime t, Point p)
+        {
+            if (p == null) return;
+            Condition.Requires(name, "name").IsNotNullOrEmpty();
+            // It's OK to mutate `data`.
+            TagsAndFields data = _overrides.Value.TagsAndFields();
+            data.MergeFrom(new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
+            p = new Point()
+            {
+                Key = new PointKey() { Name = name, Tags = data.Tags },
+                Value = new PointValue() { Timestamp = t, Fields = data.Fields },
+            };
+            // The sink may mutate `p`. We must not mutate it.
+            _sink.Push(p);
+        }
+
+        public void Push(string name, Point p)
+        {
+            if (p == null) return;
+            DateTime? t = p?.Value?.Timestamp;
+            if (!t.HasValue || t.Value == new DateTime()) t = _overrides.Value.UtcNow;
+            Push(name, t.Value, p);
+        }
+
+        public void Push(DateTime t, Point p)
+        {
+            Push(p?.Key?.Name, t, p);
+        }
+
+        public void Push(Point p)
+        {
+            Push(p?.Key?.Name, p);
+        }
+
         public IDisposable At(DateTime t)
         {
             return _overrides.Value.Push(t, null);
@@ -70,6 +104,32 @@ namespace InfluxDb
             var data = new TagsAndFields();
             Extract(cols, ref data.Tags, ref data.Fields);
             return _overrides.Value.Push(null, data);
+        }
+
+        public IDisposable With(Point p)
+        {
+            if (p == null) return null;
+            DateTime? ts = p?.Value?.Timestamp;
+            if (ts.HasValue && ts.Value == new DateTime()) ts = null;
+            return _overrides.Value.Push(ts, new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
+        }
+
+        public IDisposable With(DateTime t, Point p)
+        {
+            if (p == null) return null;
+            return _overrides.Value.Push(t, new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
+        }
+
+        public static Point Extract<TColumns>(TColumns cols)
+        {
+            Tags tags = null;
+            Fields fields = null;
+            Extract(cols, ref tags, ref fields);
+            return new Point()
+            {
+                Key = new PointKey() { Name = MeasurementExtractor<TColumns>.Name, Tags = tags },
+                Value = new PointValue() { Fields = fields },
+            };
         }
 
         static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)

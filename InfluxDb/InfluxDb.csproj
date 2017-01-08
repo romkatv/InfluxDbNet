@@ -68,7 +68,6 @@
     <Compile Include="SequenceComparer.cs" />
     <Compile Include="Serializer.cs" />
     <Compile Include="Strings.cs" />
-    <Compile Include="Synchronized.cs" />
     <Compile Include="Types.cs" />
   </ItemGroup>
   <ItemGroup>

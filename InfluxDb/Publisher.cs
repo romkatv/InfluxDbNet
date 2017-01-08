@@ -257,6 +257,7 @@ namespace InfluxDb
             Condition.Requires(p.Key.Name, "p.Key.Name").IsNotNull();
             Condition.Requires(p.Key.Tags, "p.Key.Tags").IsNotNull();
             Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotNull();
+            Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotEmpty();
             lock (_monitor)
             {
                 PointBuffer buf;

@@ -36,6 +36,8 @@ namespace InfluxDb
             // It's OK to mutate `data`.
             TagsAndFields data = _overrides.Value.TagsAndFields();
             Extract(cols, ref data.Tags, ref data.Fields);
+            // Don't push points without fields.
+            if (data.Fields.Count == 0) return;
             var p = new Point()
             {
                 Key = new PointKey() { Name = name, Tags = data.Tags },
@@ -62,6 +64,8 @@ namespace InfluxDb
             // It's OK to mutate `data`.
             TagsAndFields data = _overrides.Value.TagsAndFields();
             data.MergeFrom(new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
+            // Don't push points without fields.
+            if (data.Fields.Count == 0) return;
             p = new Point()
             {
                 Key = new PointKey() { Name = name, Tags = data.Tags },

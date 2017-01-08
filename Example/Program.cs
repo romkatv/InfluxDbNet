@@ -70,17 +70,19 @@ namespace Example
             using (var backend = new RestBackend(instance))
             using (var pub = new Publisher(backend, cfg))
             {
-                Timeseries.SetSink(pub);
+                Facade.Instance = new Facade(pub);
 
-                using (Timeseries.At(new DateTime(2016, 8, 29, 11, 53, 6, DateTimeKind.Utc)))
-                using (Timeseries.With(new Common() { Exchange = "Coinbase", Product = "BTCUSD", Position = 42.0 }))
+                // Use `?.` when reporting statistics.
+                // If `Timeseries.Instance` is null, the performance overhead will be minimal.
+                using (Facade.Instance?.At(new DateTime(2016, 8, 29, 11, 53, 6, DateTimeKind.Utc)))
+                using (Facade.Instance?.With(new Common() { Exchange = "Coinbase", Product = "BTCUSD", Position = 42.0 }))
                 {
-                    Timeseries.Push(new MarketData()
+                    Facade.Instance?.Push(new MarketData()
                     {
                         Signal = Signal.Buy,
                         OrderBook = new OrderBook() { BestAsk = 777, BestBid = 666 }
                     });
-                    Timeseries.Push(new TradeData() { RealizedPnL = 1337 });
+                    Facade.Instance?.Push(new TradeData() { RealizedPnL = 1337 });
                 }
 
                 try

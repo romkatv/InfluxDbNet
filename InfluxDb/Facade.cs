@@ -15,6 +15,8 @@ namespace InfluxDb
 {
     public class Facade
     {
+        static volatile Facade _instance;
+
         readonly ThreadLocal<Overrides> _overrides = new ThreadLocal<Overrides>(() => new Overrides());
         readonly ISink _sink;
 
@@ -130,6 +132,12 @@ namespace InfluxDb
                 Key = new PointKey() { Name = MeasurementExtractor<TColumns>.Name, Tags = tags },
                 Value = new PointValue() { Fields = fields },
             };
+        }
+
+        public static Facade Instance
+        {
+            get { return _instance; }
+            set { _instance = value; }
         }
 
         static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)

@@ -129,7 +129,7 @@ namespace Benchmarks
                 SendTimeout = TimeSpan.FromSeconds(10),
             };
             var pub = new InfluxDb.Publisher(new NullBackend(), cfg);
-            InfluxDb.Timeseries.SetSink(pub);
+            InfluxDb.Facade.Instance = new InfluxDb.Facade(pub);
             _metric_1_0_1 = Extract_1_0_1();
             _metric_1_1_1 = Extract_1_1_1();
             _metric_4_0_1 = Extract_4_0_1();
@@ -155,7 +155,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_1_0_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric1()
+            return InfluxDb.Facade.Extract(new Metric1()
             {
                 Field1 = 1.0,
             });
@@ -164,7 +164,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_1_1_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric1()
+            return InfluxDb.Facade.Extract(new Metric1()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -174,7 +174,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_4_0_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
                 Field1 = 1.0,
             });
@@ -183,7 +183,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_4_0_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -195,7 +195,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_4_1_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -205,7 +205,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_4_1_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -218,7 +218,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_4_4_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -231,7 +231,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_4_4_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric4()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -247,7 +247,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_0_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Field1 = 1.0,
             });
@@ -256,7 +256,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_0_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -268,7 +268,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_0_16()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Field1 = 1.0,
                 Field2 = 2.0,
@@ -292,7 +292,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_1_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -302,7 +302,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_1_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -315,7 +315,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_1_16()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Field1 = 1.0,
@@ -340,7 +340,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_4_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -353,7 +353,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_4_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -369,7 +369,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_4_16()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -397,7 +397,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_16_1()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -422,7 +422,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_16_4()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -450,7 +450,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public InfluxDb.Point Extract_16_16_16()
         {
-            return InfluxDb.Timeseries.MaybeExtract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
                 Tag2 = "Tag2",
@@ -562,13 +562,13 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void With_16_16_16()
         {
-            InfluxDb.Timeseries.With(new DateTime(1), _metric_16_16_16).Dispose();
+            InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16).Dispose();
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void With_16_0_1_Push_16_0_1()
         {
-            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_0_1))
+            using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_0_1))
             {
                 Push(_metric_16_0_1);
             }
@@ -577,7 +577,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void With_16_0_1_Push_16_16_16()
         {
-            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_0_1))
+            using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_0_1))
             {
                 Push(_metric_16_16_16);
             }
@@ -586,7 +586,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void With_16_16_16_Push_16_0_1()
         {
-            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_16_16))
+            using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16))
             {
                 Push(_metric_16_0_1);
             }
@@ -595,7 +595,7 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void With_16_16_16_Push_16_16_16()
         {
-            using (InfluxDb.Timeseries.With(new DateTime(1), _metric_16_16_16))
+            using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16))
             {
                 Push(_metric_16_16_16);
             }
@@ -604,7 +604,7 @@ namespace Benchmarks
         void Push(InfluxDb.Point p)
         {
             // Ensure that all timestamps are distinct.
-            InfluxDb.Timeseries.Push(new DateTime(++_ticks), p);
+            InfluxDb.Facade.Instance?.Push(new DateTime(++_ticks), p);
         }
     }
 

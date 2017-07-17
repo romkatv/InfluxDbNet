@@ -13,7 +13,8 @@ namespace InfluxDb
     public enum OnFull
     {
         DropOldest,
-        // Other options to consider: Downsample, Block.
+        Block,
+        // Other options to consider: Downsample.
     }
 
     public class PublisherConfig
@@ -81,8 +82,8 @@ namespace InfluxDb
             _samplingPeriod = samplingPeriod;
         }
 
-        // Guarantees: maxSize < 0 || Count <= maxSize (maxSize is the constructor argument).
         public int Count { get { return _points.Count + (_bottomDirty ? 1 : 0); } }
+        public bool Overfull { get { return _maxSize >= 0 && Count > _maxSize; } }
 
         // The caller must not mutate `p`. PointBuffer may mutate it.
         public void Add(PointValue p)
@@ -161,19 +162,22 @@ namespace InfluxDb
 
         void MaybeCompact()
         {
-            if (_maxSize < 0 || Count <= _maxSize) return;
-            _log.LogEvery(TimeSpan.FromSeconds(10), LogLevel.Warn,
-                          "Dropping statistics on the floor. Check your InfluxDb configuration.");
+            if (!Overfull) return;
             switch (_onFull)
             {
                 case OnFull.DropOldest:
+                    _log.LogEvery(TimeSpan.FromSeconds(10), LogLevel.Warn,
+                                  "Dropping statistics on the floor. Check your InfluxDb configuration.");
                     do
                     {
                         PointValue p = _points.RemoveFromFront();
                         // The constructor guarantees that _maxSize > 1. Hence _points can't be empty.
                         _points[0].MergeWithOlder(p);
-                    } while (Count > _maxSize);
+                    } while (Overfull);
                     break;
+                case OnFull.Block:
+                    // The blocking will be done by Publisher.
+                    return;
                 default:
                     throw new NotImplementedException("OnFull = " + _onFull);
             }
@@ -272,6 +276,10 @@ namespace InfluxDb
                     MakeBatch();
                     _send.Schedule(DateTime.UtcNow);
                 }
+                if (_cfg.OnFull == OnFull.Block)
+                {
+                    while (buf.Overfull) Monitor.Wait(_monitor);
+                }
             }
         }
 
@@ -318,6 +326,7 @@ namespace InfluxDb
             {
                 foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
             }
+            Monitor.PulseAll(_monitor);
         }
 
         bool IsFull()

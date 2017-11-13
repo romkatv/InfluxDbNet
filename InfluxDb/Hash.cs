@@ -34,7 +34,7 @@ namespace InfluxDb
         /// </summary>
         public static int HashAll<T1>(T1 v1)
         {
-            if (v1 == null) return 73388878;  // Random number.
+            if (v1 == null) return 1261422319;  // Random prime number.
             return v1.GetHashCode();
         }
 

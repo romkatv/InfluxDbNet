@@ -32,26 +32,42 @@ namespace InfluxDb
         /// <summary>
         /// Returns a combined hash of all arguments. The arguments may be null.
         /// </summary>
-        public static int HashAll<T>(T a)
+        public static int HashAll<T1>(T1 v1)
         {
-            if (a == null) return 73388878;  // Random number.
-            return a.GetHashCode();
+            if (v1 == null) return 73388878;  // Random number.
+            return v1.GetHashCode();
         }
 
         /// <summary>
         /// Returns a combined hash of all arguments. The arguments may be null.
         /// </summary>
-        public static int HashAll<T1, T2>(T1 a, T2 b)
+        public static int HashAll<T1, T2>(T1 v1, T2 v2)
         {
-            return HashWithSeed(HashAll(a), b);
+            return HashWithSeed(HashAll(v1), v2);
         }
 
         /// <summary>
         /// Returns a combined hash of all arguments. The arguments may be null.
         /// </summary>
-        public static int HashAll<T1, T2, T3>(T1 a, T2 b, T3 c)
+        public static int HashAll<T1, T2, T3>(T1 v1, T2 v2, T3 v3)
         {
-            return HashWithSeed(HashAll(a, b), c);
+            return HashWithSeed(HashAll(v1, v2), v3);
+        }
+
+        /// <summary>
+        /// Returns a combined hash of all arguments. The arguments may be null.
+        /// </summary>
+        public static int HashAll<T1, T2, T3, T4>(T1 v1, T2 v2, T3 v3, T4 v4)
+        {
+            return HashWithSeed(HashAll(v1, v2, v3), v4);
+        }
+
+        /// <summary>
+        /// Returns a combined hash of all arguments. The arguments may be null.
+        /// </summary>
+        public static int HashAll<T1, T2, T3, T4, T5>(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5)
+        {
+            return HashWithSeed(HashAll(v1, v2, v3, v4), v5);
         }
     }
 }

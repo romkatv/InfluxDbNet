@@ -93,11 +93,13 @@ namespace InfluxDb
             Push(p?.Key?.Name, p);
         }
 
+        // Dispose() on the returned object must be called on the same thread.
         public IDisposable At(DateTime t)
         {
             return _overrides.Value.Push(t, null);
         }
 
+        // Dispose() on the returned object must be called on the same thread.
         public IDisposable With<TColumns>(DateTime t, TColumns cols)
         {
             var data = new TagsAndFields();
@@ -105,6 +107,7 @@ namespace InfluxDb
             return _overrides.Value.Push(t, data);
         }
 
+        // Dispose() on the returned object must be called on the same thread.
         public IDisposable With<TColumns>(TColumns cols)
         {
             var data = new TagsAndFields();
@@ -112,6 +115,7 @@ namespace InfluxDb
             return _overrides.Value.Push(null, data);
         }
 
+        // Dispose() on the returned object must be called on the same thread.
         public IDisposable With(Point p)
         {
             if (p == null) return null;
@@ -120,6 +124,7 @@ namespace InfluxDb
             return _overrides.Value.Push(ts, new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
         }
 
+        // Dispose() on the returned object must be called on the same thread.
         public IDisposable With(DateTime t, Point p)
         {
             if (p == null) return null;
@@ -182,14 +187,12 @@ namespace InfluxDb
 
     class Overrides
     {
-        // Even though Overrides is used only through ThreadLocal, it has to use synchronization because
-        // we can't enforce that Override.Dispose() is always called on the same thread that produced the override.
-        readonly object _monitor = new object();
         readonly LinkedList<DateTime> _time = new LinkedList<DateTime>();
         readonly LinkedList<TagsAndFields> _data = new LinkedList<TagsAndFields>();
 
         class Override : IDisposable
         {
+            readonly int _thread;
             readonly Overrides _outer;
             readonly LinkedListNode<DateTime> _time;
             readonly LinkedListNode<TagsAndFields> _data;
@@ -197,6 +200,7 @@ namespace InfluxDb
             public Override(Overrides clock, LinkedListNode<DateTime> time, LinkedListNode<TagsAndFields> data)
             {
                 Condition.Requires(clock, "clock").IsNotNull();
+                _thread = Thread.CurrentThread.ManagedThreadId;
                 _outer = clock;
                 _time = time;
                 _data = data;
@@ -204,50 +208,40 @@ namespace InfluxDb
 
             public void Dispose()
             {
-                lock (_outer._monitor)
-                {
-                    if (_time != null) _outer._time.Remove(_time);
-                    if (_data != null) _outer._data.Remove(_data);
-                }
+                Condition.Requires(Thread.CurrentThread.ManagedThreadId, nameof(Thread.CurrentThread.ManagedThreadId))
+                    .IsEqualTo(_thread, "Override.Dispose() must be called from the same thread that has created it");
+                if (_time != null) _outer._time.Remove(_time);
+                if (_data != null) _outer._data.Remove(_data);
             }
         }
 
         public IDisposable Push(DateTime? t, TagsAndFields data)
         {
-            lock (_monitor)
-            {
-                return new Override
-                (
-                    this,
-                    t.HasValue ? _time.AddLast(t.Value) : null,
-                    data != null ? _data.AddLast(data) : null
-                );
-            }
+            return new Override
+            (
+                this,
+                t.HasValue ? _time.AddLast(t.Value) : null,
+                data != null ? _data.AddLast(data) : null
+            );
         }
 
         public DateTime UtcNow
         {
             get
             {
-                lock (_monitor)
-                {
-                    return _time.Any() ? _time.Last.Value : DateTime.UtcNow;
-                }
+                return _time.Any() ? _time.Last.Value : DateTime.UtcNow;
             }
         }
 
         // It's OK to mutate the result.
         public TagsAndFields TagsAndFields()
         {
-            lock (_monitor)
+            var res = new TagsAndFields() { Tags = new Tags(), Fields = new Fields() };
+            foreach (TagsAndFields data in _data)
             {
-                var res = new TagsAndFields() { Tags = new Tags(), Fields = new Fields() };
-                foreach (TagsAndFields data in _data)
-                {
-                    res.MergeFrom(data);
-                }
-                return res;
+                res.MergeFrom(data);
             }
+            return res;
         }
     }
 }

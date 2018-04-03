@@ -1,6 +1,7 @@
 ﻿using Conditions;
 using NLog;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -53,6 +54,18 @@ namespace InfluxDb
         }
     }
 
+    struct Synchronized<T>
+    {
+        public Synchronized(T value)
+        {
+            Monitor = new object();
+            Value = value;
+        }
+
+        public object Monitor { get; }
+        public T Value { get; }
+    }
+
     class PointBuffer
     {
         static readonly Logger _log = LogManager.GetCurrentClassLogger();
@@ -83,6 +96,7 @@ namespace InfluxDb
         }
 
         public int Count { get { return _points.Count + (_bottomDirty ? 1 : 0); } }
+        public bool Full { get { return _maxSize >= 0 && 2 * Count >= _maxSize; } }
         public bool Overfull { get { return _maxSize >= 0 && Count > _maxSize; } }
 
         // The caller must not mutate `p`. PointBuffer may mutate it.
@@ -222,18 +236,20 @@ namespace InfluxDb
 
     public class Publisher : ISink, IDisposable
     {
+        static readonly Logger _log = LogManager.GetCurrentClassLogger();
+
         readonly object _monitor = new object();
         readonly IBackend _backend;
         readonly PublisherConfig _cfg;
-        readonly Dictionary<PointKey, PointBuffer> _points =
-            new Dictionary<PointKey, PointBuffer>(new PointKeyComparer());
+        readonly ConcurrentDictionary<PointKey, Synchronized<PointBuffer>> _points =
+            new ConcurrentDictionary<PointKey, Synchronized<PointBuffer>>(new PointKeyComparer());
         readonly PeriodicAction _send;
         // Keys are actions that complete Flush() tasks.
         // Values are true for entries that were added before _batch was cut and the batch consumed all points.
         readonly Dictionary<Reference<Action>, bool> _wake =
             new Dictionary<Reference<Action>, bool>();
         // Points ready to be sent to the backend. If not null, we'll be trying
-        // to send them until we succeed.
+        // to send them until we succeed. Only accessed from the scheduler thread.
         List<Point> _batch = null;
 
         public Publisher(IBackend backend, PublisherConfig cfg)
@@ -262,23 +278,28 @@ namespace InfluxDb
             Condition.Requires(p.Key.Tags, "p.Key.Tags").IsNotNull();
             Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotNull();
             Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotEmpty();
-            lock (_monitor)
+            if (!_points.TryGetValue(p.Key, out Synchronized<PointBuffer> buf))
             {
-                PointBuffer buf;
-                if (!_points.TryGetValue(p.Key, out buf))
+                buf = new Synchronized<PointBuffer>(new PointBuffer(p.Key, _cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod));
+                buf = _points.GetOrAdd(p.Key, buf);
+            }
+
+            bool becameFull;
+            bool overfull;
+            lock (buf.Monitor)
+            {
+                bool wasFull = buf.Value.Full;
+                buf.Value.Add(p.Value);
+                becameFull = !wasFull && buf.Value.Full;
+                overfull = buf.Value.Overfull;
+            }
+
+            if (becameFull) _send.Schedule(DateTime.UtcNow);
+            if (overfull && _cfg.OnFull == OnFull.Block)
+            {
+                lock (buf.Monitor)
                 {
-                    buf = new PointBuffer(p.Key, _cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod);
-                    _points.Add(p.Key, buf);
-                }
-                buf.Add(p.Value);
-                if (_batch == null && IsFull())
-                {
-                    MakeBatch();
-                    _send.Schedule(DateTime.UtcNow);
-                }
-                if (_cfg.OnFull == OnFull.Block)
-                {
-                    while (buf.Overfull) Monitor.Wait(_monitor);
+                    while (buf.Value.Overfull) Monitor.Wait(_monitor);
                 }
             }
         }
@@ -291,7 +312,7 @@ namespace InfluxDb
                 Task done = new Task(delegate { }, cancel.Token);
                 var wake = new Reference<Action>(() =>
                 {
-                    try { done.RunSynchronously(); }  // it's gonna throw if the task has already been cancelled
+                    try { done.Start(); }  // it's gonna throw if the task has already been cancelled
                     catch { }
                 });
                 lock (_monitor) _wake[wake] = false;
@@ -312,46 +333,61 @@ namespace InfluxDb
             _send.Dispose();
         }
 
-        void MakeBatch()
+        // Only called from the scheduler thread.
+        //
+        // Guarantees: _batch != null.
+        void MaybeMakeBatch()
         {
-            Condition.Requires(_batch, "_batch").IsNull();
-            Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
+            if (_batch != null) return;
             _batch = new List<Point>();
+            bool tookAll = true;
+            List<Reference<Action>> wake;
+            lock (_monitor) wake = _wake.Keys.ToList();
             foreach (var kv in _points)
             {
-                kv.Value.ConsumeAppendOldest(
-                    _cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
+                lock (kv.Value.Monitor)
+                {
+                    PointBuffer buf = kv.Value.Value;
+                    bool wasOverfull = buf.Overfull;
+                    buf.ConsumeAppendOldest(_cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
+                    if (buf.Count > 0) tookAll = false;
+                    if (wasOverfull && !buf.Overfull) Monitor.PulseAll(kv.Value.Monitor);
+                }
             }
-            if (_points.Values.All((buf) => buf.Count == 0))
+            if (tookAll)
             {
-                foreach (var key in _wake.Keys.ToList()) _wake[key] = true;
+                lock (_monitor)
+                {
+                    foreach (var key in wake)
+                    {
+                        if (_wake.ContainsKey(key)) _wake[key] = true;
+                    }
+                }
             }
-            Monitor.PulseAll(_monitor);
-        }
-
-        bool IsFull()
-        {
-            Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
-            return (_cfg.MaxPointsPerBatch >= 0 &&
-                    _points.Values.Select(b => b.Count).Sum() >= _cfg.MaxPointsPerBatch) ||
-                   (_cfg.MaxPointsPerSeries >= 0 &&
-                    _points.Values.Any(b => 2 * b.Count > _cfg.MaxPointsPerSeries));
         }
 
         // At most one instance of DoFlush() is running at any given time.
         async Task DoFlush()
         {
-            lock (_monitor)
-            {
-                if (_batch == null) MakeBatch();
-            }
-            // If we can't send, this statement will throw and we'll retry in SendPeriod.
+            MaybeMakeBatch();
             // It's OK to read _batch without a lock here. It can't be modified by any other
             // thread when it's not null.
-            if (_batch.Count > 0) await _backend.Send(_batch, _cfg.SendTimeout);
+            if (_batch.Count > 0)
+            {
+                try
+                {
+                    await _backend.Send(_batch, _cfg.SendTimeout);
+                }
+                catch (Exception e)
+                {
+                    _log.Warn(e, "Unable to publish {0} points. Will retry in {1}.", _batch.Count, _cfg.SendPeriod);
+                    return;
+                }
+            }
+            _batch = null;
+            bool mustFlush;
             lock (_monitor)
             {
-                _batch = null;
                 foreach (var kv in _wake.ToList())
                 {
                     if (kv.Value)
@@ -360,11 +396,36 @@ namespace InfluxDb
                         _wake.Remove(kv.Key);
                     }
                 }
-                if (IsFull() || _wake.Count > 0)
+                mustFlush = _wake.Count > 0;
+            }
+            if (!mustFlush && (_cfg.MaxPointsPerBatch > 0 || _cfg.MaxPointsPerSeries > 0))
+            {
+                long numPoints = 0;
+                foreach (Synchronized<PointBuffer> buf in _points.Values)
                 {
-                    MakeBatch();
-                    _send.Schedule(DateTime.UtcNow);
+                    lock (buf.Monitor)
+                    {
+                        if (_cfg.MaxPointsPerBatch > 0)
+                        {
+                            numPoints += buf.Value.Count;
+                            if (numPoints >= _cfg.MaxPointsPerBatch)
+                            {
+                                mustFlush = true;
+                                break;
+                            }
+                        }
+                        if (_cfg.MaxPointsPerSeries > 0 && buf.Value.Full)
+                        {
+                            mustFlush = true;
+                            break;
+                        }
+                    }
                 }
+            }
+            if (mustFlush)
+            {
+                MaybeMakeBatch();
+                _send.Schedule(DateTime.UtcNow);
             }
         }
     }

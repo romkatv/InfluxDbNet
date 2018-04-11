@@ -22,125 +22,108 @@ namespace InfluxDb
 
         public Facade(ISink sink)
         {
-            Condition.Requires(sink, "sink").IsNotNull();
+            Condition.Requires(sink, nameof(sink)).IsNotNull();
             _sink = sink;
         }
 
-        public void Push<TColumns>(string name, TColumns cols)
-        {
-            Push(name, _overrides.Value.UtcNow, cols);
-        }
-
+        // Name can be null, in which case it is extracted from `TColumns`.
         public void Push<TColumns>(string name, DateTime t, TColumns cols)
         {
-            // It's OK to mutate `data`.
-            TagsAndFields data = _overrides.Value.TagsAndFields();
-            Extract(cols, ref data.Tags, ref data.Fields);
-            // Don't push points without fields.
-            if (data.Fields.Count == 0) return;
-            var p = new Point()
-            {
-                Key = new PointKey() { Name = name, Tags = data.Tags },
-                Value = new PointValue() { Timestamp = t, Fields = data.Fields },
-            };
-            // The sink may mutate `p`. We must not mutate it.
-            _sink.Push(p);
+            Override x = _overrides.Value.AggregateCopy();
+            Extract(cols, x);
+            x.Timestamp = t;
+            DoPush(name ?? MeasurementExtractor<TColumns>.Name, x);
         }
 
-        public void Push<TColumns>(TColumns cols)
+        // Name can be null, in which case it is extracted from `TColumns`.
+        public void Push<TColumns>(string name, TColumns cols)
         {
-            Push(MeasurementExtractor<TColumns>.Name, cols);
+            Override x = _overrides.Value.AggregateCopy();
+            Extract(cols, x);
+            DoPush(name ?? MeasurementExtractor<TColumns>.Name, x);
         }
 
-        public void Push<TColumns>(DateTime t, TColumns cols)
+        public void Push<TColumns>(DateTime t, TColumns cols) => Push(null, t, cols);
+
+        public void Push<TColumns>(TColumns cols) => Push(null, cols);
+
+        // Name and point cannot be null.
+        public void Push(string name, DateTime t, PartialPoint p)
         {
-            Push(MeasurementExtractor<TColumns>.Name, t, cols);
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            Override x = _overrides.Value.AggregateCopy();
+            x.MergeFrom(t, p);
+            DoPush(name, x);
         }
 
-        public void Push(string name, DateTime t, Point p)
+        public void Push(string name, PartialPoint p)
         {
-            if (p == null) return;
-            Condition.Requires(name, "name").IsNotNullOrEmpty();
-            // It's OK to mutate `data`.
-            TagsAndFields data = _overrides.Value.TagsAndFields();
-            data.MergeFrom(new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
-            // Don't push points without fields.
-            if (data.Fields.Count == 0) return;
-            p = new Point()
-            {
-                Key = new PointKey() { Name = name, Tags = data.Tags },
-                Value = new PointValue() { Timestamp = t, Fields = data.Fields },
-            };
-            // The sink may mutate `p`. We must not mutate it.
-            _sink.Push(p);
-        }
-
-        public void Push(string name, Point p)
-        {
-            if (p == null) return;
-            DateTime? t = p?.Value?.Timestamp;
-            if (!t.HasValue || t.Value == new DateTime()) t = _overrides.Value.UtcNow;
-            Push(name, t.Value, p);
-        }
-
-        public void Push(DateTime t, Point p)
-        {
-            Push(p?.Key?.Name, t, p);
-        }
-
-        public void Push(Point p)
-        {
-            Push(p?.Key?.Name, p);
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            Override x = _overrides.Value.AggregateCopy();
+            x.MergeFrom(null, p);
+            DoPush(name, x);
         }
 
         // Dispose() on the returned object must be called on the same thread.
-        public IDisposable At(DateTime t)
-        {
-            return _overrides.Value.Push(t, null);
-        }
+        public IDisposable At(DateTime t) => _overrides.Value.Add(new Override() { Timestamp = t });
 
         // Dispose() on the returned object must be called on the same thread.
         public IDisposable With<TColumns>(DateTime t, TColumns cols)
         {
-            var data = new TagsAndFields();
-            Extract(cols, ref data.Tags, ref data.Fields);
-            return _overrides.Value.Push(t, data);
+            var data = new Override() { Timestamp = t };
+            Extract(cols, data);
+            return _overrides.Value.Add(data);
         }
 
         // Dispose() on the returned object must be called on the same thread.
         public IDisposable With<TColumns>(TColumns cols)
         {
-            var data = new TagsAndFields();
-            Extract(cols, ref data.Tags, ref data.Fields);
-            return _overrides.Value.Push(null, data);
+            var data = new Override();
+            Extract(cols, data);
+            return _overrides.Value.Add(data);
         }
 
         // Dispose() on the returned object must be called on the same thread.
-        public IDisposable With(Point p)
+        public IDisposable With(DateTime t, PartialPoint p)
         {
-            if (p == null) return null;
-            DateTime? ts = p?.Value?.Timestamp;
-            if (ts.HasValue && ts.Value == new DateTime()) ts = null;
-            return _overrides.Value.Push(ts, new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            var x = new Override();
+            x.MergeFrom(t, p);
+            return _overrides.Value.Add(x);
         }
 
         // Dispose() on the returned object must be called on the same thread.
-        public IDisposable With(DateTime t, Point p)
+        public IDisposable With(PartialPoint p)
         {
-            if (p == null) return null;
-            return _overrides.Value.Push(t, new TagsAndFields() { Tags = p.Key?.Tags, Fields = p.Value?.Fields });
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            var x = new Override();
+            x.MergeFrom(null, p);
+            return _overrides.Value.Add(x);
         }
 
-        public static Point Extract<TColumns>(TColumns cols)
+        // DoPush() stores a reference to `p` and may mutate it at any point in the future.
+        // Thus, the caller must not access `p` or any of its subobjects after DoPush() returns.
+        void DoPush(string name, Override p)
         {
-            Tags tags = null;
-            Fields fields = null;
-            Extract(cols, ref tags, ref fields);
-            return new Point()
+            Condition.Requires(name, nameof(name)).IsNotNullOrWhiteSpace();
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            if (p.Fields?.Count > 0)
             {
-                Key = new PointKey() { Name = MeasurementExtractor<TColumns>.Name, Tags = tags },
-                Value = new PointValue() { Fields = fields },
-            };
+                // The sink may mutate the point. We must not mutate it.
+                _sink.Push(new Point()
+                {
+                    Key = new PointKey()
+                    {
+                        Name = name,
+                        Tags = p.Tags ?? new Tags()
+                    },
+                    Value = new PointValue()
+                    {
+                        Timestamp = p.Timestamp ?? DateTime.UtcNow,
+                        Fields = p.Fields
+                    },
+                });
+            }
         }
 
         public static Facade Instance
@@ -149,60 +132,66 @@ namespace InfluxDb
             set { _instance = value; }
         }
 
-        static void Extract<TColumns>(TColumns cols, ref Tags tags, ref Fields fields)
+        // Sets Point.Key.Timestamp to DateTime.MinValue, which has a special meaning. Push() replaces
+        // such values with DateTime.UtcNow.
+        public static PartialPoint Extract<TColumns>(TColumns cols)
         {
-            tags = tags ?? new Tags();
-            fields = fields ?? new Fields();
-            var t = tags;
-            var f = fields;
+            var p = new PartialPoint();
+            Extract(cols, p);
+            return p;
+        }
+
+        // Copies tags and fields (but not the name) from `cols` to `p`.
+        static void Extract<TColumns>(TColumns cols, PartialPoint p)
+        {
             MemberExtractor<TColumns>.Instance.Extract
             (
                 cols,
-                (key, val) => t[key] = val,  // the last value wins
-                (key, val) => f[key] = val   // the last value wins
+                (key, val) =>
+                {
+                    p.Tags = p.Tags ?? new Tags();
+                    p.Tags[key] = val;  // the last value wins
+                },
+                (key, val) =>
+                {
+                    p.Fields = p.Fields ?? new Fields();
+                    p.Fields[key] = val;  // the last value wins
+                }
             );
         }
     }
 
-    class TagsAndFields
+    class Override : PartialPoint
     {
-        public Tags Tags;
-        public Fields Fields;
+        // If null, doesn't override timestamp.
+        // DateTime.MinValue is special. Such values get replaced with DateTime.UtcNow in Facade.Push().
+        public DateTime? Timestamp { get; set; }
 
-        public void MergeFrom(TagsAndFields other)
+        public void MergeFrom(Override other) => MergeFrom(other?.Timestamp, other);
+
+        public void MergeFrom(DateTime? t, PartialPoint p)
         {
-            if (other == null) return;
-            if (other.Tags != null)
-            {
-                Tags = Tags ?? new Tags();
-                Tags.MergeFrom(other.Tags);
-            }
-            if (other.Fields != null)
-            {
-                Fields = Fields ?? new Fields();
-                Fields.MergeFrom(other.Fields);
-            }
+            base.MergeFrom(p);
+            Timestamp = t ?? Timestamp;
         }
     }
 
     class Overrides
     {
-        readonly LinkedList<DateTime> _time = new LinkedList<DateTime>();
-        readonly LinkedList<TagsAndFields> _data = new LinkedList<TagsAndFields>();
+        readonly LinkedList<Override> _data = new LinkedList<Override>();
 
-        class Override : IDisposable
+        class Deleter : IDisposable
         {
             readonly int _thread;
             readonly Overrides _outer;
-            readonly LinkedListNode<DateTime> _time;
-            readonly LinkedListNode<TagsAndFields> _data;
+            readonly LinkedListNode<Override> _data;
 
-            public Override(Overrides clock, LinkedListNode<DateTime> time, LinkedListNode<TagsAndFields> data)
+            public Deleter(Overrides outer, LinkedListNode<Override> data)
             {
-                Condition.Requires(clock, "clock").IsNotNull();
+                Condition.Requires(outer, nameof(outer)).IsNotNull();
+                Condition.Requires(data, nameof(data)).IsNotNull();
                 _thread = Thread.CurrentThread.ManagedThreadId;
-                _outer = clock;
-                _time = time;
+                _outer = outer;
                 _data = data;
             }
 
@@ -210,37 +199,18 @@ namespace InfluxDb
             {
                 Condition.Requires(Thread.CurrentThread.ManagedThreadId, nameof(Thread.CurrentThread.ManagedThreadId))
                     .IsEqualTo(_thread, "Override.Dispose() must be called from the same thread that has created it");
-                if (_time != null) _outer._time.Remove(_time);
-                if (_data != null) _outer._data.Remove(_data);
+                if (_data.List != null) _outer._data.Remove(_data);
             }
         }
 
-        public IDisposable Push(DateTime? t, TagsAndFields data)
-        {
-            return new Override
-            (
-                this,
-                t.HasValue ? _time.AddLast(t.Value) : null,
-                data != null ? _data.AddLast(data) : null
-            );
-        }
+        // The caller must not mutate `p` or any of its subobjects after Add() returns.
+        public IDisposable Add(Override p) => new Deleter(this, _data.AddLast(p));
 
-        public DateTime UtcNow
+        // It's OK to mutate the result. It doesn't alias anything.
+        public Override AggregateCopy()
         {
-            get
-            {
-                return _time.Any() ? _time.Last.Value : DateTime.UtcNow;
-            }
-        }
-
-        // It's OK to mutate the result.
-        public TagsAndFields TagsAndFields()
-        {
-            var res = new TagsAndFields() { Tags = new Tags(), Fields = new Fields() };
-            foreach (TagsAndFields data in _data)
-            {
-                res.MergeFrom(data);
-            }
+            var res = new Override();
+            foreach (Override data in _data) res.MergeFrom(data);
             return res;
         }
     }

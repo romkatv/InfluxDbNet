@@ -233,6 +233,7 @@ namespace InfluxDb
 
     public class PointValue
     {
+        // Facade treats Timestamp equal to DateTime.MinValue as current time when Push() is called.
         public DateTime Timestamp { get; set; }
         public Dictionary<string, Field> Fields { get; set; }
 
@@ -263,8 +264,7 @@ namespace InfluxDb
             }
             foreach (var elem in older.Fields)
             {
-                Field f;
-                if (Fields.TryGetValue(elem.Key, out f) && f != null)
+                if (Fields.TryGetValue(elem.Key, out Field f) && f != null)
                 {
                     f.MergeWithOlder(elem.Value);
                 }
@@ -280,6 +280,29 @@ namespace InfluxDb
     {
         public PointKey Key { get; set; }
         public PointValue Value { get; set; }
+    }
+
+    public class PartialPoint
+    {
+        // Can be null.
+        public Dictionary<string, string> Tags { get; set; }
+        // Can be null.
+        public Dictionary<string, Field> Fields { get; set; }
+
+        public void MergeFrom(PartialPoint other)
+        {
+            if (other == null) return;
+            if (other.Tags != null)
+            {
+                Tags = Tags ?? new Dictionary<string, string>();
+                Tags.MergeFrom(other.Tags);
+            }
+            if (other.Fields != null)
+            {
+                Fields = Fields ?? new Dictionary<string, Field>();
+                Fields.MergeFrom(other.Fields, field => field.Clone());
+            }
+        }
     }
 
     public interface ISink

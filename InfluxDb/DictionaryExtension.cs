@@ -18,5 +18,16 @@ namespace InfluxDb
                 x[kv.Key] = kv.Value;
             }
         }
+
+        // The left argument is mutated.
+        // The right argument wins in case of key conflicts.
+        public static void MergeFrom<TKey, TValue1, TValue2>(
+            this IDictionary<TKey, TValue1> x, IDictionary<TKey, TValue2> y, Func<TValue2, TValue1> f)
+        {
+            foreach (var kv in y)
+            {
+                x[kv.Key] = f.Invoke(kv.Value);
+            }
+        }
     }
 }

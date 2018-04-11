@@ -97,26 +97,26 @@ namespace Benchmarks
     public class BM_Timeseries
     {
         long _ticks = 0;
-        readonly InfluxDb.Point _metric_1_0_1;
-        readonly InfluxDb.Point _metric_1_1_1;
-        readonly InfluxDb.Point _metric_4_0_1;
-        readonly InfluxDb.Point _metric_4_0_4;
-        readonly InfluxDb.Point _metric_4_1_1;
-        readonly InfluxDb.Point _metric_4_1_4;
-        readonly InfluxDb.Point _metric_4_4_1;
-        readonly InfluxDb.Point _metric_4_4_4;
-        readonly InfluxDb.Point _metric_16_0_1;
-        readonly InfluxDb.Point _metric_16_0_4;
-        readonly InfluxDb.Point _metric_16_0_16;
-        readonly InfluxDb.Point _metric_16_1_1;
-        readonly InfluxDb.Point _metric_16_1_4;
-        readonly InfluxDb.Point _metric_16_1_16;
-        readonly InfluxDb.Point _metric_16_4_1;
-        readonly InfluxDb.Point _metric_16_4_4;
-        readonly InfluxDb.Point _metric_16_4_16;
-        readonly InfluxDb.Point _metric_16_16_1;
-        readonly InfluxDb.Point _metric_16_16_4;
-        readonly InfluxDb.Point _metric_16_16_16;
+        readonly InfluxDb.PartialPoint _metric_1_0_1;
+        readonly InfluxDb.PartialPoint _metric_1_1_1;
+        readonly InfluxDb.PartialPoint _metric_4_0_1;
+        readonly InfluxDb.PartialPoint _metric_4_0_4;
+        readonly InfluxDb.PartialPoint _metric_4_1_1;
+        readonly InfluxDb.PartialPoint _metric_4_1_4;
+        readonly InfluxDb.PartialPoint _metric_4_4_1;
+        readonly InfluxDb.PartialPoint _metric_4_4_4;
+        readonly InfluxDb.PartialPoint _metric_16_0_1;
+        readonly InfluxDb.PartialPoint _metric_16_0_4;
+        readonly InfluxDb.PartialPoint _metric_16_0_16;
+        readonly InfluxDb.PartialPoint _metric_16_1_1;
+        readonly InfluxDb.PartialPoint _metric_16_1_4;
+        readonly InfluxDb.PartialPoint _metric_16_1_16;
+        readonly InfluxDb.PartialPoint _metric_16_4_1;
+        readonly InfluxDb.PartialPoint _metric_16_4_4;
+        readonly InfluxDb.PartialPoint _metric_16_4_16;
+        readonly InfluxDb.PartialPoint _metric_16_16_1;
+        readonly InfluxDb.PartialPoint _metric_16_16_4;
+        readonly InfluxDb.PartialPoint _metric_16_16_16;
 
         public BM_Timeseries()
         {
@@ -153,7 +153,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_1_0_1()
+        public InfluxDb.PartialPoint Extract_1_0_1()
         {
             return InfluxDb.Facade.Extract(new Metric1()
             {
@@ -162,7 +162,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_1_1_1()
+        public InfluxDb.PartialPoint Extract_1_1_1()
         {
             return InfluxDb.Facade.Extract(new Metric1()
             {
@@ -172,7 +172,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_4_0_1()
+        public InfluxDb.PartialPoint Extract_4_0_1()
         {
             return InfluxDb.Facade.Extract(new Metric4()
             {
@@ -181,7 +181,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_4_0_4()
+        public InfluxDb.PartialPoint Extract_4_0_4()
         {
             return InfluxDb.Facade.Extract(new Metric4()
             {
@@ -193,7 +193,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_4_1_1()
+        public InfluxDb.PartialPoint Extract_4_1_1()
         {
             return InfluxDb.Facade.Extract(new Metric4()
             {
@@ -203,7 +203,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_4_1_4()
+        public InfluxDb.PartialPoint Extract_4_1_4()
         {
             return InfluxDb.Facade.Extract(new Metric4()
             {
@@ -216,20 +216,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_4_4_1()
-        {
-            return InfluxDb.Facade.Extract(new Metric4()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Field1 = 1.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_4_4_4()
+        public InfluxDb.PartialPoint Extract_4_4_1()
         {
             return InfluxDb.Facade.Extract(new Metric4()
             {
@@ -238,26 +225,18 @@ namespace Benchmarks
                 Tag3 = "Tag3",
                 Tag4 = "Tag4",
                 Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
             });
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_0_1()
+        public InfluxDb.PartialPoint Extract_4_4_4()
         {
-            return InfluxDb.Facade.Extract(new Metric16()
+            return InfluxDb.Facade.Extract(new Metric4()
             {
-                Field1 = 1.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_0_4()
-        {
-            return InfluxDb.Facade.Extract(new Metric16()
-            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
                 Field1 = 1.0,
                 Field2 = 2.0,
                 Field3 = 3.0,
@@ -266,7 +245,28 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_0_16()
+        public InfluxDb.PartialPoint Extract_16_0_1()
+        {
+            return InfluxDb.Facade.Extract(new Metric16()
+            {
+                Field1 = 1.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.PartialPoint Extract_16_0_4()
+        {
+            return InfluxDb.Facade.Extract(new Metric16()
+            {
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.PartialPoint Extract_16_0_16()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
@@ -290,7 +290,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_1_1()
+        public InfluxDb.PartialPoint Extract_16_1_1()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
@@ -300,20 +300,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_1_4()
-        {
-            return InfluxDb.Facade.Extract(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_1_16()
+        public InfluxDb.PartialPoint Extract_16_1_4()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
@@ -322,59 +309,15 @@ namespace Benchmarks
                 Field2 = 2.0,
                 Field3 = 3.0,
                 Field4 = 4.0,
-                Field5 = 5.0,
-                Field6 = 6.0,
-                Field7 = 7.0,
-                Field8 = 8.0,
-                Field9 = 9.0,
-                Field10 = 10.0,
-                Field11 = 11.0,
-                Field12 = 12.0,
-                Field13 = 13.0,
-                Field14 = 14.0,
-                Field15 = 15.0,
-                Field16 = 16.0,
             });
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_4_1()
+        public InfluxDb.PartialPoint Extract_16_1_16()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
                 Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Field1 = 1.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_4_4()
-        {
-            return InfluxDb.Facade.Extract(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
-                Field1 = 1.0,
-                Field2 = 2.0,
-                Field3 = 3.0,
-                Field4 = 4.0,
-            });
-        }
-
-        [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_4_16()
-        {
-            return InfluxDb.Facade.Extract(new Metric16()
-            {
-                Tag1 = "Tag1",
-                Tag2 = "Tag2",
-                Tag3 = "Tag3",
-                Tag4 = "Tag4",
                 Field1 = 1.0,
                 Field2 = 2.0,
                 Field3 = 3.0,
@@ -395,7 +338,64 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_16_1()
+        public InfluxDb.PartialPoint Extract_16_4_1()
+        {
+            return InfluxDb.Facade.Extract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Field1 = 1.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.PartialPoint Extract_16_4_4()
+        {
+            return InfluxDb.Facade.Extract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.PartialPoint Extract_16_4_16()
+        {
+            return InfluxDb.Facade.Extract(new Metric16()
+            {
+                Tag1 = "Tag1",
+                Tag2 = "Tag2",
+                Tag3 = "Tag3",
+                Tag4 = "Tag4",
+                Field1 = 1.0,
+                Field2 = 2.0,
+                Field3 = 3.0,
+                Field4 = 4.0,
+                Field5 = 5.0,
+                Field6 = 6.0,
+                Field7 = 7.0,
+                Field8 = 8.0,
+                Field9 = 9.0,
+                Field10 = 10.0,
+                Field11 = 11.0,
+                Field12 = 12.0,
+                Field13 = 13.0,
+                Field14 = 14.0,
+                Field15 = 15.0,
+                Field16 = 16.0,
+            });
+        }
+
+        [BenchmarkDotNet.Attributes.Benchmark]
+        public InfluxDb.PartialPoint Extract_16_16_1()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
@@ -420,7 +420,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_16_4()
+        public InfluxDb.PartialPoint Extract_16_16_4()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
@@ -448,7 +448,7 @@ namespace Benchmarks
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
-        public InfluxDb.Point Extract_16_16_16()
+        public InfluxDb.PartialPoint Extract_16_16_16()
         {
             return InfluxDb.Facade.Extract(new Metric16()
             {
@@ -490,73 +490,73 @@ namespace Benchmarks
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_1()
         {
-            Push(_metric_16_0_1);
+            Push(nameof(_metric_16_0_1), _metric_16_0_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_1()
         {
-            Push(_metric_16_1_1);
+            Push(nameof(_metric_16_1_1), _metric_16_1_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_1()
         {
-            Push(_metric_16_4_1);
+            Push(nameof(_metric_16_4_1), _metric_16_4_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_1()
         {
-            Push(_metric_16_16_1);
+            Push(nameof(_metric_16_16_1), _metric_16_16_1);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_4()
         {
-            Push(_metric_16_0_4);
+            Push(nameof(_metric_16_0_4), _metric_16_0_4);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_4()
         {
-            Push(_metric_16_1_4);
+            Push(nameof(_metric_16_1_4), _metric_16_1_4);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_4()
         {
-            Push(_metric_16_4_4);
+            Push(nameof(_metric_16_4_4), _metric_16_4_4);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_4()
         {
-            Push(_metric_16_16_4);
+            Push(nameof(_metric_16_16_4), _metric_16_16_4);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_0_16()
         {
-            Push(_metric_16_0_16);
+            Push(nameof(_metric_16_0_16), _metric_16_0_16);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_1_16()
         {
-            Push(_metric_16_1_16);
+            Push(nameof(_metric_16_1_16), _metric_16_1_16);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_4_16()
         {
-            Push(_metric_16_4_16);
+            Push(nameof(_metric_16_4_16), _metric_16_4_16);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
         public void Push_16_16_16()
         {
-            Push(_metric_16_16_16);
+            Push(nameof(_metric_16_16_16), _metric_16_16_16);
         }
 
         [BenchmarkDotNet.Attributes.Benchmark]
@@ -570,7 +570,7 @@ namespace Benchmarks
         {
             using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_0_1))
             {
-                Push(_metric_16_0_1);
+                Push(nameof(_metric_16_0_1), _metric_16_0_1);
             }
         }
 
@@ -579,7 +579,7 @@ namespace Benchmarks
         {
             using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_0_1))
             {
-                Push(_metric_16_16_16);
+                Push(nameof(_metric_16_16_16), _metric_16_16_16);
             }
         }
 
@@ -588,7 +588,7 @@ namespace Benchmarks
         {
             using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16))
             {
-                Push(_metric_16_0_1);
+                Push(nameof(_metric_16_0_1), _metric_16_0_1);
             }
         }
 
@@ -597,14 +597,14 @@ namespace Benchmarks
         {
             using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16))
             {
-                Push(_metric_16_16_16);
+                Push(nameof(_metric_16_16_16), _metric_16_16_16);
             }
         }
 
-        void Push(InfluxDb.Point p)
+        void Push(string name, InfluxDb.PartialPoint p)
         {
             // Ensure that all timestamps are distinct.
-            InfluxDb.Facade.Instance?.Push(new DateTime(++_ticks), p);
+            InfluxDb.Facade.Instance?.Push(name, new DateTime(++_ticks), p);
         }
     }
 

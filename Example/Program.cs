@@ -14,6 +14,9 @@ namespace Example
     class Common
     {
         [Tag]
+        public string Application { get; set; }
+
+        [Tag]
         public string Exchange { get; set; }
         [Tag]
         public string Product { get; set; }
@@ -73,7 +76,8 @@ namespace Example
                 Facade.Instance = new Facade(pub);
 
                 // Use `?.` when reporting statistics.
-                // If `Timeseries.Instance` is null, the performance overhead will be minimal.
+                // If `Facade.Instance` is null, the performance overhead will be minimal.
+                using (Facade.Instance?.GlobalWith(new Common() { Application = "Example" }))
                 using (Facade.Instance?.At(new DateTime(2016, 8, 29, 11, 53, 6, DateTimeKind.Utc)))
                 using (Facade.Instance?.With(new Common() { Exchange = "Coinbase", Product = "BTCUSD", Position = 42.0 }))
                 {

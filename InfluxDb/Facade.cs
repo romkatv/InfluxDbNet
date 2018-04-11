@@ -17,7 +17,9 @@ namespace InfluxDb
     {
         static volatile Facade _instance;
 
-        readonly ThreadLocal<Overrides> _overrides = new ThreadLocal<Overrides>(() => new Overrides());
+        readonly MultiThreadedOverrides _globalOverrides = new MultiThreadedOverrides();
+        readonly ThreadLocal<SingleThreadedOverrides> _threadLocalOverrides =
+            new ThreadLocal<SingleThreadedOverrides>(() => new SingleThreadedOverrides());
         readonly ISink _sink;
 
         public Facade(ISink sink)
@@ -29,7 +31,7 @@ namespace InfluxDb
         // Name can be null, in which case it is extracted from `TColumns`.
         public void Push<TColumns>(string name, DateTime t, TColumns cols)
         {
-            Override x = _overrides.Value.AggregateCopy();
+            Override x = GetBase();
             Extract(cols, x);
             x.Timestamp = t;
             DoPush(name ?? MeasurementExtractor<TColumns>.Name, x);
@@ -38,7 +40,7 @@ namespace InfluxDb
         // Name can be null, in which case it is extracted from `TColumns`.
         public void Push<TColumns>(string name, TColumns cols)
         {
-            Override x = _overrides.Value.AggregateCopy();
+            Override x = GetBase();
             Extract(cols, x);
             DoPush(name ?? MeasurementExtractor<TColumns>.Name, x);
         }
@@ -51,7 +53,7 @@ namespace InfluxDb
         public void Push(string name, DateTime t, PartialPoint p)
         {
             Condition.Requires(p, nameof(p)).IsNotNull();
-            Override x = _overrides.Value.AggregateCopy();
+            Override x = GetBase();
             x.MergeFrom(t, p);
             DoPush(name, x);
         }
@@ -59,46 +61,111 @@ namespace InfluxDb
         public void Push(string name, PartialPoint p)
         {
             Condition.Requires(p, nameof(p)).IsNotNull();
-            Override x = _overrides.Value.AggregateCopy();
+            Override x = GetBase();
             x.MergeFrom(null, p);
             DoPush(name, x);
         }
 
+        // Thread-local override.
+        //
         // Dispose() on the returned object must be called on the same thread.
-        public IDisposable At(DateTime t) => _overrides.Value.Add(new Override() { Timestamp = t });
+        public IDisposable At(DateTime t) => _threadLocalOverrides.Value.Add(new Override() { Timestamp = t });
 
+        // Thread-local override.
+        //
         // Dispose() on the returned object must be called on the same thread.
         public IDisposable With<TColumns>(DateTime t, TColumns cols)
         {
             var data = new Override() { Timestamp = t };
             Extract(cols, data);
-            return _overrides.Value.Add(data);
+            return _threadLocalOverrides.Value.Add(data);
         }
 
+        // Thread-local override.
+        //
         // Dispose() on the returned object must be called on the same thread.
         public IDisposable With<TColumns>(TColumns cols)
         {
             var data = new Override();
             Extract(cols, data);
-            return _overrides.Value.Add(data);
+            return _threadLocalOverrides.Value.Add(data);
         }
 
+        // Thread-local override.
+        //
         // Dispose() on the returned object must be called on the same thread.
         public IDisposable With(DateTime t, PartialPoint p)
         {
             Condition.Requires(p, nameof(p)).IsNotNull();
             var x = new Override();
             x.MergeFrom(t, p);
-            return _overrides.Value.Add(x);
+            return _threadLocalOverrides.Value.Add(x);
         }
 
+        // Thread-local override.
+        //
         // Dispose() on the returned object must be called on the same thread.
         public IDisposable With(PartialPoint p)
         {
             Condition.Requires(p, nameof(p)).IsNotNull();
             var x = new Override();
             x.MergeFrom(null, p);
-            return _overrides.Value.Add(x);
+            return _threadLocalOverrides.Value.Add(x);
+        }
+
+        public IDisposable GlobalAt(DateTime t) => _globalOverrides.Add(new Override() { Timestamp = t });
+
+        public IDisposable GlobalWith<TColumns>(DateTime t, TColumns cols)
+        {
+            var data = new Override() { Timestamp = t };
+            Extract(cols, data);
+            return _globalOverrides.Add(data);
+        }
+
+        public IDisposable GlobalWith<TColumns>(TColumns cols)
+        {
+            var data = new Override();
+            Extract(cols, data);
+            return _globalOverrides.Add(data);
+        }
+
+        public IDisposable GlobalWith(DateTime t, PartialPoint p)
+        {
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            var x = new Override();
+            x.MergeFrom(t, p);
+            return _globalOverrides.Add(x);
+        }
+
+        public IDisposable GlobalWith(PartialPoint p)
+        {
+            Condition.Requires(p, nameof(p)).IsNotNull();
+            var x = new Override();
+            x.MergeFrom(null, p);
+            return _globalOverrides.Add(x);
+        }
+
+        public static Facade Instance
+        {
+            get { return _instance; }
+            set { _instance = value; }
+        }
+
+        // Sets Point.Key.Timestamp to DateTime.MinValue, which has a special meaning. Push() replaces
+        // such values with DateTime.UtcNow.
+        public static PartialPoint Extract<TColumns>(TColumns cols)
+        {
+            var p = new PartialPoint();
+            Extract(cols, p);
+            return p;
+        }
+
+        Override GetBase()
+        {
+            Override res = new Override();
+            _globalOverrides.MergeTo(res);
+            _threadLocalOverrides.Value.MergeTo(res);
+            return res;
         }
 
         // DoPush() stores a reference to `p` and may mutate it at any point in the future.
@@ -124,21 +191,6 @@ namespace InfluxDb
                     },
                 });
             }
-        }
-
-        public static Facade Instance
-        {
-            get { return _instance; }
-            set { _instance = value; }
-        }
-
-        // Sets Point.Key.Timestamp to DateTime.MinValue, which has a special meaning. Push() replaces
-        // such values with DateTime.UtcNow.
-        public static PartialPoint Extract<TColumns>(TColumns cols)
-        {
-            var p = new PartialPoint();
-            Extract(cols, p);
-            return p;
         }
 
         // Copies tags and fields (but not the name) from `cols` to `p`.
@@ -176,17 +228,17 @@ namespace InfluxDb
         }
     }
 
-    class Overrides
+    class SingleThreadedOverrides
     {
         readonly LinkedList<Override> _data = new LinkedList<Override>();
 
         class Deleter : IDisposable
         {
             readonly int _thread;
-            readonly Overrides _outer;
+            readonly SingleThreadedOverrides _outer;
             readonly LinkedListNode<Override> _data;
 
-            public Deleter(Overrides outer, LinkedListNode<Override> data)
+            public Deleter(SingleThreadedOverrides outer, LinkedListNode<Override> data)
             {
                 Condition.Requires(outer, nameof(outer)).IsNotNull();
                 Condition.Requires(data, nameof(data)).IsNotNull();
@@ -207,11 +259,67 @@ namespace InfluxDb
         public IDisposable Add(Override p) => new Deleter(this, _data.AddLast(p));
 
         // It's OK to mutate the result. It doesn't alias anything.
-        public Override AggregateCopy()
+        public void MergeTo(Override x)
         {
-            var res = new Override();
-            foreach (Override data in _data) res.MergeFrom(data);
-            return res;
+            foreach (Override data in _data) x.MergeFrom(data);
+        }
+    }
+
+    class MultiThreadedOverrides
+    {
+        readonly object _monitor = new object();
+        readonly LinkedList<Override> _data = new LinkedList<Override>();
+        volatile Override _aggregate = new Override();
+
+        class Deleter : IDisposable
+        {
+            readonly MultiThreadedOverrides _outer;
+            readonly LinkedListNode<Override> _data;
+
+            public Deleter(MultiThreadedOverrides outer, LinkedListNode<Override> data)
+            {
+                Condition.Requires(outer, nameof(outer)).IsNotNull();
+                Condition.Requires(data, nameof(data)).IsNotNull();
+                _outer = outer;
+                _data = data;
+            }
+
+            public void Dispose()
+            {
+                lock (_outer._monitor)
+                {
+                    if (_data.List != null)
+                    {
+                        _outer._data.Remove(_data);
+                        _outer.Update();
+                    }
+                }
+            }
+        }
+
+        // The caller must not mutate `p` or any of its subobjects after Add() returns.
+        public IDisposable Add(Override p)
+        {
+            LinkedListNode<Override> node;
+            lock (_monitor)
+            {
+                node = _data.AddLast(p);
+                Update();
+            }
+            return new Deleter(this, node);
+        }
+
+        public void MergeTo(Override x)
+        {
+            x.MergeFrom(_aggregate);
+        }
+
+        void Update()
+        {
+            Condition.Requires(Monitor.IsEntered(_monitor)).IsTrue();
+            var aggregate = new Override();
+            foreach (Override x in _data) aggregate.MergeFrom(x);
+            _aggregate = aggregate;
         }
     }
 }

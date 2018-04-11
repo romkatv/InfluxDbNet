@@ -63,9 +63,19 @@ namespace InfluxDb
 
         public async Task Send(List<Point> points, TimeSpan timeout)
         {
-            _log.Info("OUT: HTTP POST {0} <{1} point(s)>", _http.BaseAddress, points.Count);
-            var msg = new HttpRequestMessage(HttpMethod.Post, "");
-            msg.Content = new StringContent(Serializer.Serialize(points), Encoding.UTF8, "application/octet-stream");
+            string req = Serializer.Serialize(points);
+            if (_log.IsDebugEnabled)
+            {
+                _log.Debug("OUT: HTTP POST {0} <{1} point(s)>: {2}", _http.BaseAddress, points.Count, req);
+            }
+            else
+            {
+                _log.Info("OUT: HTTP POST {0} <{1} point(s)>", _http.BaseAddress, points.Count);
+            }
+            var msg = new HttpRequestMessage(HttpMethod.Post, "")
+            {
+                Content = new StringContent(req, Encoding.UTF8, "application/octet-stream")
+            };
             using (var cancel = new CancellationTokenSource(timeout))
             {
                 HttpResponseMessage resp = await _http.SendAsync(msg, HttpCompletionOption.ResponseContentRead, cancel.Token);

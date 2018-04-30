@@ -339,15 +339,26 @@ namespace InfluxDb
         void MaybeMakeBatch()
         {
             if (_batch != null) return;
+
+            DateTime start = DateTime.UtcNow;
+            int numBuffers = 0;
+            int numEmptyBuffers = 0;
+
             _batch = new List<Point>();
             bool tookAll = true;
             List<Reference<Action>> wake;
             lock (_monitor) wake = _wake.Keys.ToList();
             foreach (var kv in _points)
             {
+                ++numBuffers;
                 lock (kv.Value.Monitor)
                 {
                     PointBuffer buf = kv.Value.Value;
+                    if (buf.Count == 0)
+                    {
+                        ++numEmptyBuffers;
+                        continue;
+                    }
                     bool wasOverfull = buf.Overfull;
                     buf.ConsumeAppendOldest(_cfg.MaxPointsPerBatch < 0 ? -1 : _cfg.MaxPointsPerBatch - _batch.Count, _batch);
                     if (buf.Count > 0) tookAll = false;
@@ -364,6 +375,9 @@ namespace InfluxDb
                     }
                 }
             }
+            _log.Debug(
+                "Batch stats: time to build = {0:N2} ms; number of buffers = {1}; number of empty buffers = {2}; number of points = {3}",
+                (DateTime.UtcNow - start).TotalMilliseconds, numBuffers, numEmptyBuffers, _batch.Count);
         }
 
         // At most one instance of DoFlush() is running at any given time.

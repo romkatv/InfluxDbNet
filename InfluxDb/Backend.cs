@@ -66,7 +66,9 @@ namespace InfluxDb
             string req = Serializer.Serialize(points);
             if (_log.IsDebugEnabled)
             {
-                _log.Debug("OUT: HTTP POST {0} <{1} point(s)>: {2}", _http.BaseAddress, points.Count, req);
+                string indent = "  ";
+                _log.Debug("OUT: HTTP POST {0} <{1} point(s)>:\n{2}{3}",
+                           _http.BaseAddress, points.Count, indent, req.Replace("\n", "\n" + indent));
             }
             else
             {

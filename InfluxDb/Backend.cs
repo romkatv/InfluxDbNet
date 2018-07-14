@@ -3,6 +3,7 @@ using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -54,11 +55,19 @@ namespace InfluxDb
         static readonly Logger _log = LogManager.GetCurrentClassLogger();
         readonly HttpClient _http;
 
-        public RestBackend(Instance instance)
+        // If proxy is not null, HTTP requests will be sent through this proxy. Must be in the form of host:port. 
+        public RestBackend(Instance instance, string proxy = null)
         {
-            _http = new HttpClient();
-            _http.Timeout = TimeSpan.FromMilliseconds(-1);
-            _http.BaseAddress = new Uri(instance.Uri);
+            var h = new HttpClientHandler()
+            {
+                Proxy = proxy == null ? null : new WebProxy(proxy),
+                UseProxy = proxy != null,
+            };
+            _http = new HttpClient(h)
+            {
+                Timeout = TimeSpan.FromMilliseconds(-1),
+                BaseAddress = new Uri(instance.Uri)
+            };
         }
 
         public async Task Send(List<Point> points, TimeSpan timeout)

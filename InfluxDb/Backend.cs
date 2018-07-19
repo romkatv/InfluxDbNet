@@ -56,12 +56,14 @@ namespace InfluxDb
         readonly HttpClient _http;
 
         // If proxy is not null, HTTP requests will be sent through this proxy. Must be in the form of host:port. 
-        public RestBackend(Instance instance, string proxy = null)
+        public RestBackend(Instance instance, string proxy = null, string user = null, string password = null)
         {
             var h = new HttpClientHandler()
             {
                 Proxy = proxy == null ? null : new WebProxy(proxy),
                 UseProxy = proxy != null,
+                Credentials = new NetworkCredential(user, password),
+                ServerCertificateCustomValidationCallback = (_1, _2, _3, _4) => true,
             };
             _http = new HttpClient(h)
             {

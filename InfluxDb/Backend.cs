@@ -55,21 +55,20 @@ namespace InfluxDb
         static readonly Logger _log = LogManager.GetCurrentClassLogger();
         readonly HttpClient _http;
 
-        // If proxy is not null, HTTP requests will be sent through this proxy. Must be in the form of host:port. 
-        public RestBackend(Instance instance, string proxy = null, string user = null, string password = null)
+        // If handler is null, disposeHandler is meaningless.
+        public RestBackend(Instance instance, HttpMessageHandler handler = null, bool disposeHandler = true)
         {
-            var h = new HttpClientHandler()
+            if (handler == null)
             {
-                Proxy = proxy == null ? null : new WebProxy(proxy),
-                UseProxy = proxy != null,
-                Credentials = new NetworkCredential(user, password),
-                ServerCertificateCustomValidationCallback = (_1, _2, _3, _4) => true,
-            };
-            _http = new HttpClient(h)
+                Condition.Requires(disposeHandler, nameof(disposeHandler)).IsTrue();
+                _http = new HttpClient();
+            }
+            else
             {
-                Timeout = TimeSpan.FromMilliseconds(-1),
-                BaseAddress = new Uri(instance.Uri)
-            };
+                _http = new HttpClient(handler, disposeHandler);
+            }
+            _http.Timeout = TimeSpan.FromMilliseconds(-1);
+            _http.BaseAddress = new Uri(instance.Uri);
         }
 
         public async Task Send(List<Point> points, TimeSpan timeout)

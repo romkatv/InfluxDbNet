@@ -51,6 +51,9 @@ namespace Example
         public int Internal { get; set; }
     }
 
+    // Before running this example, you need to create database "finance" in InfluxDb.
+    //
+    //   > CREATE DATABASE finance
     class Program
     {
         static readonly Logger _log = LogManager.GetCurrentClassLogger();

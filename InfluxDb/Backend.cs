@@ -74,15 +74,21 @@ namespace InfluxDb
         public async Task Send(List<Point> points, TimeSpan timeout)
         {
             string req = Serializer.Serialize(points);
+            if (req.Length == 0)
+            {
+                _log.Info("No valid points to publish");
+                return;
+            }
+            int n = req.Count(c => c == '\n') + 1;
             if (_log.IsDebugEnabled)
             {
                 string indent = "  ";
                 _log.Debug("OUT: HTTP POST {0} <{1} point(s)>:\n{2}{3}",
-                           _http.BaseAddress, points.Count, indent, req.Replace("\n", "\n" + indent));
+                           _http.BaseAddress, n, indent, req.Replace("\n", "\n" + indent));
             }
             else
             {
-                _log.Info("OUT: HTTP POST {0} <{1} point(s)>", _http.BaseAddress, points.Count);
+                _log.Info("OUT: HTTP POST {0} <{1} point(s)>", _http.BaseAddress, n);
             }
             var msg = new HttpRequestMessage(HttpMethod.Post, "")
             {

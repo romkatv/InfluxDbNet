@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,28 +14,41 @@ namespace InfluxDb
         static readonly char[] KeySpecialChars = new char[] { '\\', ' ', ',', '=' };
         static readonly char[] FieldSpecialChars = new char[] { '\\', '"' };
 
+        static readonly Logger _log = LogManager.GetCurrentClassLogger();
+
         public static string Serialize(IEnumerable<Point> points)
         {
-            var sb = new StringBuilder();
-            bool first = true;
+            var valid = new StringBuilder();
+            var invalid = new StringBuilder();
             foreach (Point p in points)
             {
-                if (first) first = false;
-                else sb.Append('\n');
-                WritePoint(p, sb);
+                int checkpoint = valid.Length;
+                if (valid.Length > 0) valid.Append('\n');
+                if (!WritePoint(p, valid))
+                {
+                    invalid.Append("\n  ");
+                    int start = checkpoint == 0 ? 0 : checkpoint + 1;
+                    invalid.Append(valid.ToString(start, valid.Length - start));
+                    valid.Length = checkpoint;
+                }
             }
-            return sb.ToString();
+            if (invalid.Length > 0)
+            {
+                _log.Error("Dropping point(s) that would have invalid serialized representation:{0}", invalid);
+            }
+            return valid.ToString();
         }
 
-        static void WritePoint(Point p, StringBuilder sb)
+        static bool WritePoint(Point p, StringBuilder sb)
         {
-            WriteKey(p.Key.Name, sb);
+            bool res = true;
+            res &= WriteKey(p.Key.Name, sb);
             foreach (var kv in p.Key.Tags.OrderBy(kv => kv.Key))
             {
                 sb.Append(',');
-                WriteKey(kv.Key, sb);
+                res &= WriteKey(kv.Key, sb);
                 sb.Append('=');
-                WriteTag(kv.Value, sb);
+                res &= WriteTag(kv.Value, sb);
             }
 
             sb.Append(' ');
@@ -44,46 +58,52 @@ namespace InfluxDb
                 if (first) first = false;
                 else sb.Append(',');
 
-                WriteKey(kv.Key, sb);
+                res &= WriteKey(kv.Key, sb);
                 sb.Append('=');
-                WriteField(kv.Value, sb);
+                res &= WriteField(kv.Value, sb);
             }
 
             sb.Append(' ');
             WriteTimestamp(p.Value.Timestamp, sb);
+            return res;
         }
 
-        static void WriteTag(string tag, StringBuilder sb)
-        {
-            WriteKey(tag, sb);
-        }
+        static bool WriteTag(string tag, StringBuilder sb) => WriteKey(tag, sb);
 
-        static void WriteField(Field f, StringBuilder sb)
+        static bool WriteField(Field f, StringBuilder sb)
         {
-            f.Visit<object>
+            return f.Visit
             (
                 (long x) =>
                 {
                     sb.Append(x);
                     sb.Append('i');
-                    return null;
+                    return true;
                 },
                 (double x) =>
                 {
                     sb.AppendFormat("{0:R}", x);
-                    return null;
+                    return !double.IsInfinity(x) && !double.IsNaN(x);
                 },
                 (bool x) =>
                 {
                     sb.Append(x ? "true" : "false");
-                    return null;
+                    return true;
                 },
                 (string x) =>
                 {
-                    sb.Append('"');
-                    Strings.Escape(x, '\\', FieldSpecialChars, sb);
-                    sb.Append('"');
-                    return null;
+                    if (x == null)
+                    {
+                        sb.Append("null");
+                        return false;
+                    }
+                    else
+                    {
+                        sb.Append('"');
+                        Strings.Escape(x, '\\', FieldSpecialChars, sb);
+                        sb.Append('"');
+                        return true;
+                    }
                 }
             );
         }
@@ -97,9 +117,18 @@ namespace InfluxDb
             sb.Append(ns);
         }
 
-        static void WriteKey(string key, StringBuilder sb)
+        static bool WriteKey(string key, StringBuilder sb)
         {
-            Strings.Escape(key, '\\', KeySpecialChars, sb);
+            if (key == null)
+            {
+                sb.Append("null");
+                return false;
+            }
+            else
+            {
+                Strings.Escape(key, '\\', KeySpecialChars, sb);
+                return true;
+            }
         }
     }
 }

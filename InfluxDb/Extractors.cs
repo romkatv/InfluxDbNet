@@ -11,222 +11,178 @@ using OnTag = System.Action<string, string>;
 using OnField = System.Action<string, InfluxDb.Field>;
 using E = System.Linq.Expressions.Expression;
 
-namespace InfluxDb
-{
-    static class MeasurementExtractor<T>
-    {
-        public static readonly string Name =
-            typeof(T).GetCustomAttribute<NameAttribute>()?.Value ??
-            Strings.CamelCaseToUnderscores(typeof(T).Name).ToLower();
-    }
+namespace InfluxDb {
+  static class MeasurementExtractor<T> {
+    public static readonly string Name =
+        typeof(T).GetCustomAttribute<NameAttribute>()?.Value ??
+        Strings.CamelCaseToUnderscores(typeof(T).Name).ToLower();
+  }
 
-    class MemberExtractor
-    {
-        // Composite extractors are at [0].
-        // Simple extractors are at [1].
-        readonly List<Action<object, OnTag, OnField>>[] _extractors = new [] {
+  class MemberExtractor {
+    // Composite extractors are at [0].
+    // Simple extractors are at [1].
+    readonly List<Action<object, OnTag, OnField>>[] _extractors = new[] {
             new List<Action<object, OnTag, OnField>>(),
             new List<Action<object, OnTag, OnField>>()
         };
 
-        public MemberExtractor(Type t) : this(t, new Dictionary<Type, MemberExtractor>()) { }
+    public MemberExtractor(Type t) : this(t, new Dictionary<Type, MemberExtractor>()) { }
 
-        MemberExtractor(Type t, Dictionary<Type, MemberExtractor> cache)
-        {
-            Condition.Requires(t, "t").IsNotNull();
-            Condition.Requires(cache, "cache").IsNotNull();
-            cache.Add(t, this);
+    MemberExtractor(Type t, Dictionary<Type, MemberExtractor> cache) {
+      Condition.Requires(t, "t").IsNotNull();
+      Condition.Requires(cache, "cache").IsNotNull();
+      cache.Add(t, this);
 
-            var flags = BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
-            // Extract public static and instance fields.
-            foreach (FieldInfo x in t.GetFields(flags))
-            {
-                AddExtractor(x, t, cache);
-            }
-            // Extract public static and instance properties.
-            foreach (PropertyInfo x in t.GetProperties(flags))
-            {
-                AddExtractor(x, t, cache);
-            }
-        }
-
-        void AddExtractor(MemberInfo member, Type t, Dictionary<Type, MemberExtractor> cache)
-        {
-            if (member.GetCustomAttribute<IgnoreAttribute>() != null) return;
-
-            Type fieldType;
-            if (member is PropertyInfo)
-            {
-                var prop = (PropertyInfo)member;
-                if (!prop.CanRead) return;
-                fieldType = prop.PropertyType;
-            }
-            else
-            {
-                var field = (FieldInfo)member;
-                fieldType = field.FieldType;
-            }
-
-            if (member.GetCustomAttribute<TagAttribute>() == null)
-            {
-                AddFieldExtractor(Name(member), fieldType, Aggregation(member), Getter(member.Name, t, fieldType), cache);
-            }
-            else
-            {
-                if (member.GetCustomAttribute<AggregatedAttribute>() != null)
-                    throw new Exception("Attributes Tag and Aggregated are incompatible");
-                AddTagExtractor(Name(member), Getter(member.Name, t, fieldType));
-            }
-        }
-
-        void AddTagExtractor(string name, Func<object, object> get)
-        {
-            _extractors[1].Add((obj, onTag, onField) =>
-            {
-                object x = get(obj);
-                if (x != null) onTag(name, x.ToString());
-            });
-        }
-
-        void AddFieldExtractor(string name, Type t, Aggregation agg, Func<object, object> get, Dictionary<Type, MemberExtractor> cache)
-        {
-            // Simple field type.
-            Type field = FieldType(ValueType(t));
-            if (field != null)
-            {
-                Func<object, Field> make;
-                {
-                    ParameterExpression obj = E.Parameter(typeof(object), "obj");
-                    E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field), E.Constant(agg));
-                    make = E.Lambda<Func<object, Field>>(e, obj).Compile();
-                }
-                _extractors[1].Add((obj, onTag, onField) =>
-                {
-                    object x = get(obj);
-                    if (x != null) onField(name, make(x));
-                });
-                return;
-            }
-
-            // Composite type.
-            if (ValueType(t).IsPrimitive) throw new Exception("Unsupported type: " + t.Name);
-            MemberExtractor extractor;
-            if (!cache.TryGetValue(ValueType(t), out extractor))
-            {
-                extractor = new MemberExtractor(ValueType(t), cache);
-            }
-            _extractors[0].Add((obj, onTag, onField) =>
-            {
-                object x = get(obj);
-                if (x != null) extractor.Extract(x, onTag, onField);
-            });
-        }
-
-        public void Extract(object obj, OnTag onTag, OnField onField)
-        {
-            Condition.Requires(obj, "obj").IsNotNull();
-            Condition.Requires(onTag, "onTag").IsNotNull();
-            Condition.Requires(onField, "onField").IsNotNull();
-            foreach (var x in _extractors)
-            {
-                foreach (var y in x)
-                {
-                    y(obj, onTag, onField);
-                }
-            }
-        }
-
-        static Func<object, object> Getter(string name, Type container, Type member)
-        {
-            ParameterExpression obj = E.Parameter(typeof(object), "obj");
-            BindingFlags flags = Flags(container, name);
-            E x;
-            if (flags.HasFlag(BindingFlags.Instance))
-            {
-                // E.PropertyOrField() doesn't work for static properties and fields.
-                x = E.PropertyOrField(E.Convert(obj, container), name);
-            }
-            else if (flags.HasFlag(BindingFlags.GetField))
-            {
-                x = E.Field(null, container, name);
-            }
-            else
-            {
-                Condition.Requires(flags.HasFlag(BindingFlags.GetProperty)).IsTrue();
-                x = E.Property(null, container, name);
-            }
-
-            if (IsNullable(member))
-            {
-                x = E.Condition(E.Property(x, "HasValue"), E.Convert(E.Property(x, "Value"), typeof(object)), E.Constant(null));
-            }
-            else
-            {
-                x = E.Convert(x, typeof(object));
-            }
-            return E.Lambda<Func<object, object>>(x, obj).Compile();
-        }
-
-        static BindingFlags Flags(Type t, string name)
-        {
-            foreach (var f in new[] { BindingFlags.Instance, BindingFlags.Static })
-            {
-                MemberInfo[] m = t.GetMember(name, BindingFlags.FlattenHierarchy | BindingFlags.Public | f);
-                if (m != null && m.Length > 0)
-                {
-                    Condition.Requires(m.Length, "m.Length").IsEqualTo(1);
-                    if (m[0].MemberType == MemberTypes.Field) return f | BindingFlags.GetField;
-                    if (m[0].MemberType == MemberTypes.Property) return f | BindingFlags.GetProperty;
-                    throw new Exception("Unexpected member type: " + m[0].MemberType);
-                }
-            }
-            throw new Exception(t.Name + " doesn't have member " + name);
-        }
-
-        static string Name(MemberInfo member)
-        {
-            return member.GetCustomAttribute<NameAttribute>()?.Value ??
-                Strings.CamelCaseToUnderscores(member.Name).ToLower();
-        }
-
-        static Aggregation Aggregation(MemberInfo member)
-        {
-            var attr = member.GetCustomAttribute<AggregatedAttribute>();
-            return attr == null ? InfluxDb.Aggregation.Last : attr.Aggregation;
-        }
-
-        static bool IsNullable(Type t)
-        {
-            return t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>);
-        }
-
-        static Type ValueType(Type t)
-        {
-            return IsNullable(t) ? t.GetGenericArguments().First() : t;
-        }
-
-        static Type FieldType(Type f)
-        {
-            if (f == typeof(long) || f == typeof(double) || f == typeof(bool) || f == typeof(string))
-            {
-                return f;
-            }
-            if (f == typeof(byte) || f == typeof(sbyte) ||
-                f == typeof(short) || f == typeof(ushort) ||
-                f == typeof(int) || f == typeof(uint))
-            {
-                return typeof(long);
-            }
-            if (f == typeof(float) || f == typeof(decimal))
-            {
-                return typeof(double);
-            }
-            return null;
-        }
+      var flags = BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
+      // Extract public static and instance fields.
+      foreach (FieldInfo x in t.GetFields(flags)) {
+        AddExtractor(x, t, cache);
+      }
+      // Extract public static and instance properties.
+      foreach (PropertyInfo x in t.GetProperties(flags)) {
+        AddExtractor(x, t, cache);
+      }
     }
 
-    static class MemberExtractor<TColumns>
-    {
-        public static readonly MemberExtractor Instance = new MemberExtractor(typeof(TColumns));
+    void AddExtractor(MemberInfo member, Type t, Dictionary<Type, MemberExtractor> cache) {
+      if (member.GetCustomAttribute<IgnoreAttribute>() != null) return;
+
+      Type fieldType;
+      if (member is PropertyInfo) {
+        var prop = (PropertyInfo)member;
+        if (!prop.CanRead) return;
+        fieldType = prop.PropertyType;
+      } else {
+        var field = (FieldInfo)member;
+        fieldType = field.FieldType;
+      }
+
+      if (member.GetCustomAttribute<TagAttribute>() == null) {
+        AddFieldExtractor(Name(member), fieldType, Aggregation(member), Getter(member.Name, t, fieldType), cache);
+      } else {
+        if (member.GetCustomAttribute<AggregatedAttribute>() != null)
+          throw new Exception("Attributes Tag and Aggregated are incompatible");
+        AddTagExtractor(Name(member), Getter(member.Name, t, fieldType));
+      }
     }
+
+    void AddTagExtractor(string name, Func<object, object> get) {
+      _extractors[1].Add((obj, onTag, onField) => {
+        object x = get(obj);
+        if (x != null) onTag(name, x.ToString());
+      });
+    }
+
+    void AddFieldExtractor(string name, Type t, Aggregation agg, Func<object, object> get, Dictionary<Type, MemberExtractor> cache) {
+      // Simple field type.
+      Type field = FieldType(ValueType(t));
+      if (field != null) {
+        Func<object, Field> make;
+        {
+          ParameterExpression obj = E.Parameter(typeof(object), "obj");
+          E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field), E.Constant(agg));
+          make = E.Lambda<Func<object, Field>>(e, obj).Compile();
+        }
+        _extractors[1].Add((obj, onTag, onField) => {
+          object x = get(obj);
+          if (x != null) onField(name, make(x));
+        });
+        return;
+      }
+
+      // Composite type.
+      if (ValueType(t).IsPrimitive) throw new Exception("Unsupported type: " + t.Name);
+      MemberExtractor extractor;
+      if (!cache.TryGetValue(ValueType(t), out extractor)) {
+        extractor = new MemberExtractor(ValueType(t), cache);
+      }
+      _extractors[0].Add((obj, onTag, onField) => {
+        object x = get(obj);
+        if (x != null) extractor.Extract(x, onTag, onField);
+      });
+    }
+
+    public void Extract(object obj, OnTag onTag, OnField onField) {
+      Condition.Requires(obj, "obj").IsNotNull();
+      Condition.Requires(onTag, "onTag").IsNotNull();
+      Condition.Requires(onField, "onField").IsNotNull();
+      foreach (var x in _extractors) {
+        foreach (var y in x) {
+          y(obj, onTag, onField);
+        }
+      }
+    }
+
+    static Func<object, object> Getter(string name, Type container, Type member) {
+      ParameterExpression obj = E.Parameter(typeof(object), "obj");
+      BindingFlags flags = Flags(container, name);
+      E x;
+      if (flags.HasFlag(BindingFlags.Instance)) {
+        // E.PropertyOrField() doesn't work for static properties and fields.
+        x = E.PropertyOrField(E.Convert(obj, container), name);
+      } else if (flags.HasFlag(BindingFlags.GetField)) {
+        x = E.Field(null, container, name);
+      } else {
+        Condition.Requires(flags.HasFlag(BindingFlags.GetProperty)).IsTrue();
+        x = E.Property(null, container, name);
+      }
+
+      if (IsNullable(member)) {
+        x = E.Condition(E.Property(x, "HasValue"), E.Convert(E.Property(x, "Value"), typeof(object)), E.Constant(null));
+      } else {
+        x = E.Convert(x, typeof(object));
+      }
+      return E.Lambda<Func<object, object>>(x, obj).Compile();
+    }
+
+    static BindingFlags Flags(Type t, string name) {
+      foreach (var f in new[] { BindingFlags.Instance, BindingFlags.Static }) {
+        MemberInfo[] m = t.GetMember(name, BindingFlags.FlattenHierarchy | BindingFlags.Public | f);
+        if (m != null && m.Length > 0) {
+          Condition.Requires(m.Length, "m.Length").IsEqualTo(1);
+          if (m[0].MemberType == MemberTypes.Field) return f | BindingFlags.GetField;
+          if (m[0].MemberType == MemberTypes.Property) return f | BindingFlags.GetProperty;
+          throw new Exception("Unexpected member type: " + m[0].MemberType);
+        }
+      }
+      throw new Exception(t.Name + " doesn't have member " + name);
+    }
+
+    static string Name(MemberInfo member) {
+      return member.GetCustomAttribute<NameAttribute>()?.Value ??
+          Strings.CamelCaseToUnderscores(member.Name).ToLower();
+    }
+
+    static Aggregation Aggregation(MemberInfo member) {
+      var attr = member.GetCustomAttribute<AggregatedAttribute>();
+      return attr == null ? InfluxDb.Aggregation.Last : attr.Aggregation;
+    }
+
+    static bool IsNullable(Type t) {
+      return t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>);
+    }
+
+    static Type ValueType(Type t) {
+      return IsNullable(t) ? t.GetGenericArguments().First() : t;
+    }
+
+    static Type FieldType(Type f) {
+      if (f == typeof(long) || f == typeof(double) || f == typeof(bool) || f == typeof(string)) {
+        return f;
+      }
+      if (f == typeof(byte) || f == typeof(sbyte) ||
+          f == typeof(short) || f == typeof(ushort) ||
+          f == typeof(int) || f == typeof(uint)) {
+        return typeof(long);
+      }
+      if (f == typeof(float) || f == typeof(decimal)) {
+        return typeof(double);
+      }
+      return null;
+    }
+  }
+
+  static class MemberExtractor<TColumns> {
+    public static readonly MemberExtractor Instance = new MemberExtractor(typeof(TColumns));
+  }
 }

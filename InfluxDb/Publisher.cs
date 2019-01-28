@@ -272,7 +272,7 @@ namespace InfluxDb {
         Task done = new Task(delegate { }, cancel.Token);
         var wake = new Reference<Action>(() => {
           try { done.Start(); }  // it's gonna throw if the task has already been cancelled
-          catch { }
+          catch (InvalidOperationException) { }
         });
         lock (_monitor) _wake[wake] = false;
         _send.Schedule(DateTime.UtcNow);

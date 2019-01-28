@@ -49,7 +49,10 @@ namespace InfluxDb {
         lock (_monitor) {
           if (_next != null) {
             // If we don't run the task, it'll never get deleted.
-            _next.RunSynchronously();
+            try {
+              _next.RunSynchronously();
+            } catch (InvalidOperationException) {
+            }
             _next = null;
           }
           if (_data.Any()) {

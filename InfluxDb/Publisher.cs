@@ -1,4 +1,5 @@
 ﻿using Conditions;
+using Nito.Collections;
 using NLog;
 using System;
 using System.Collections.Concurrent;
@@ -70,17 +71,17 @@ namespace InfluxDb {
     // Non-negative.
     readonly TimeSpan _samplingPeriod;
     // Invariant: _maxSize < 0 || _points.Count <= _maxSize.
-    readonly Nito.Deque<PointValue> _points = new Nito.Deque<PointValue>();
+    readonly Deque<PointValue> _points = new Deque<PointValue>();
     // The last consumed point. Not null.
-    PointValue _bottom = new PointValue() { Timestamp = new DateTime(), Fields = new Dictionary<string, Field>() };
+    PointValue _bottom = new PointValue() { Timestamp = new DateTime(), Fields = new List<Field>() };
     // Has _bottom been modified?
     bool _bottomDirty = false;
 
     // The key is immutable: neither PointBuffer nor the caller may change it.
     public PointBuffer(PointKey key, int maxSize, OnFull onFull, TimeSpan samplingPeriod) {
-      Condition.Requires(key, "key").IsNotNull();
-      Condition.Requires(maxSize, "maxSize").IsNotInRange(0, 1);
-      Condition.Requires(samplingPeriod, "samplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
+      Condition.Requires(key, nameof(key)).IsNotNull();
+      Condition.Requires(maxSize, nameof(maxSize)).IsNotInRange(0, 1);
+      Condition.Requires(samplingPeriod, nameof(samplingPeriod)).IsGreaterOrEqual(TimeSpan.Zero);
       _key = key;
       _maxSize = maxSize;
       _onFull = onFull;
@@ -93,7 +94,7 @@ namespace InfluxDb {
 
     // The caller must not mutate `p`. PointBuffer may mutate it.
     public void Add(PointValue p) {
-      Condition.Requires(p, "p").IsNotNull();
+      Condition.Requires(p, nameof(p)).IsNotNull();
       if (p.Timestamp <= _bottom.Timestamp) {
         if (p.Timestamp == _bottom.Timestamp) {
           var tmp = p;
@@ -187,22 +188,6 @@ namespace InfluxDb {
     }
   }
 
-  class PointKeyComparer : IEqualityComparer<PointKey> {
-    readonly DictionaryComparer<string, string> _cmp =
-        new DictionaryComparer<string, string>();
-
-    public bool Equals(PointKey x, PointKey y) {
-      if (x == null) return y == null;
-      if (y == null) return false;
-      return x.Name == y.Name && _cmp.Equals(x.Tags, y.Tags);
-    }
-
-    public int GetHashCode(PointKey p) {
-      if (p == null) return 501107580;  // Random number.
-      return Hash.Combine(Hash.HashAll(p.Name), _cmp.GetHashCode(p.Tags));
-    }
-  }
-
   public class Publisher : ISink, IDisposable {
     static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
@@ -210,7 +195,7 @@ namespace InfluxDb {
     readonly IBackend _backend;
     readonly PublisherConfig _cfg;
     readonly ConcurrentDictionary<PointKey, Synchronized<PointBuffer>> _points =
-        new ConcurrentDictionary<PointKey, Synchronized<PointBuffer>>(new PointKeyComparer());
+        new ConcurrentDictionary<PointKey, Synchronized<PointBuffer>>();
     readonly PeriodicAction _send;
     // Keys are actions that complete Flush() tasks.
     // Values are true for entries that were added before _batch was cut and the batch consumed all points.
@@ -221,13 +206,13 @@ namespace InfluxDb {
     List<Point> _batch = null;
 
     public Publisher(IBackend backend, PublisherConfig cfg) {
-      Condition.Requires(backend, "backend").IsNotNull();
-      Condition.Requires(cfg, "cfg").IsNotNull();
-      Condition.Requires(cfg.MaxPointsPerBatch, "cfg.MaxPointsPerBatch").IsNotEqualTo(0);
-      Condition.Requires(cfg.SendPeriod, "cfg.SendPeriod").IsGreaterThan(TimeSpan.Zero);
+      Condition.Requires(backend, nameof(backend)).IsNotNull();
+      Condition.Requires(cfg, nameof(cfg)).IsNotNull();
+      Condition.Requires(cfg.MaxPointsPerBatch, nameof(cfg.MaxPointsPerBatch)).IsNotEqualTo(0);
+      Condition.Requires(cfg.SendPeriod, nameof(cfg.SendPeriod)).IsGreaterThan(TimeSpan.Zero);
       if (cfg.SendTimeout != TimeSpan.FromMilliseconds(-1))
-        Condition.Requires(cfg.SendTimeout, "cfg.SendTimeout").IsGreaterOrEqual(TimeSpan.Zero);
-      Condition.Requires(cfg.SamplingPeriod, "cfg.SamplingPeriod").IsGreaterOrEqual(TimeSpan.Zero);
+        Condition.Requires(cfg.SendTimeout, nameof(cfg.SendTimeout)).IsGreaterOrEqual(TimeSpan.Zero);
+      Condition.Requires(cfg.SamplingPeriod, nameof(cfg.SamplingPeriod)).IsGreaterOrEqual(TimeSpan.Zero);
       _backend = backend;
       _cfg = cfg.Clone();
       if (_cfg.Scheduler == null) _cfg.Scheduler = new Scheduler();
@@ -237,15 +222,18 @@ namespace InfluxDb {
 
     // The caller must not mutate `p`. Publisher may mutate it.
     public void Push(Point p) {
-      Condition.Requires(p, "p").IsNotNull();
-      Condition.Requires(p.Key, "p.Key").IsNotNull();
-      Condition.Requires(p.Value, "p.Value").IsNotNull();
-      Condition.Requires(p.Key.Name, "p.Key.Name").IsNotNull();
-      Condition.Requires(p.Key.Tags, "p.Key.Tags").IsNotNull();
-      Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotNull();
-      Condition.Requires(p.Value.Fields, "p.Value.Fields").IsNotEmpty();
+#if DEBUG
+      Condition.Requires(p, nameof(p)).IsNotNull();
+      Condition.Requires(p.Key, nameof(p.Key)).IsNotNull();
+      Condition.Requires(p.Value, nameof(p.Value)).IsNotNull();
+      Condition.Requires(p.Key.Name, nameof(p.Key.Name)).IsNotNull();
+      Condition.Requires(p.Key.Tags, nameof(p.Key.Tags)).IsNotNull();
+      Condition.Requires(p.Value.Fields, nameof(p.Value.Fields)).IsNotNull();
+      Condition.Requires(p.Value.Fields, nameof(p.Value.Fields)).IsNotEmpty();
+#endif
       if (!_points.TryGetValue(p.Key, out Synchronized<PointBuffer> buf)) {
-        buf = new Synchronized<PointBuffer>(new PointBuffer(p.Key, _cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod));
+        buf = new Synchronized<PointBuffer>(
+            new PointBuffer(p.Key, _cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod));
         buf = _points.GetOrAdd(p.Key, buf);
       }
 

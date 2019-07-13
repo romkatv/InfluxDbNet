@@ -23,14 +23,14 @@ namespace InfluxDb {
 
     internal string Uri {
       get {
-        Condition.Requires(Endpoint, "Endpoint").IsNotNullOrEmpty();
-        Condition.Requires(Database, "Database").IsNotNullOrEmpty();
+        Condition.Requires(Endpoint, nameof(Endpoint)).IsNotNullOrEmpty();
+        Condition.Requires(Database, nameof(Database)).IsNotNullOrEmpty();
         var uri = new StringBuilder(Endpoint);
         if (!Endpoint.EndsWith("/")) uri.Append('/');
         uri.Append("write");
         bool hasQuery = false;
         Action<string, string> AddQueryParam = (name, value) => {
-          Condition.Requires(name, "name").IsNotNullOrEmpty();
+          Condition.Requires(name, nameof(name)).IsNotNullOrEmpty();
           if (value == null) return;
           uri.Append(hasQuery ? '&' : '?');
           hasQuery = true;

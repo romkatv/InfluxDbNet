@@ -13,60 +13,30 @@ namespace InfluxDb {
     Max,
   }
 
-  // Essentially Variant<long, double, bool, string>.
-  public abstract class Field : IEquatable<Field> {
+  public abstract class Field {
     protected Aggregation _aggregation;
 
     public static Field New(long val, Aggregation aggregation = Aggregation.Last) {
-      return new C0() { Val = val, _aggregation = aggregation };
+      return new LongField() { Val = val, _aggregation = aggregation };
     }
     public static Field New(double val, Aggregation aggregation = Aggregation.Last) {
-      return new C1() { Val = val, _aggregation = aggregation };
+      return new DoubleField() { Val = val, _aggregation = aggregation };
     }
     public static Field New(bool val, Aggregation aggregation = Aggregation.Last) {
-      return new C2() { Val = val, _aggregation = aggregation };
+      return new BoolField() { Val = val, _aggregation = aggregation };
     }
     public static Field New(string val, Aggregation aggregation = Aggregation.Last) {
-      return new C3() { Val = val, _aggregation = aggregation };
+      return new StringField() { Val = val, _aggregation = aggregation };
     }
 
-    /// <summary>
-    /// Calls exactly one of the passed functions passing it the currently held value.
-    /// </summary>
-    public abstract R Visit<R>(Func<long, R> v0, Func<double, R> v1, Func<bool, R> v2, Func<string, R> v3);
-
-    /// <summary>
-    /// Zero-based index of the active value.
-    /// </summary>
-    public int Index() {
-      return Visit((v) => 0, (v) => 1, (v) => 2, (v) => 3);
-    }
-
-    /// <summary>
-    /// Type of the active value.
-    /// </summary>
-    public Type Type() {
-      return Visit((v) => typeof(long), (v) => typeof(double), (v) => typeof(bool), (v) => typeof(string));
-    }
-
-    /// <summary>
-    /// Currently active value as Object.
-    /// </summary>
-    public object Value() {
-      return Visit<object>((long v) => v, (double v) => v, (bool v) => v, (string v) => v);
-    }
-
-    public Field Clone() {
-      return Visit((long v) => New(v, _aggregation), (double v) => New(v, _aggregation),
-                   (bool v) => New(v, _aggregation), (string v) => New(v, _aggregation));
-    }
+    public Field Clone() => (Field)MemberwiseClone();
 
     public void MergeWithOlder(Field older) {
-      Condition.Requires(older, "older").IsNotNull();
+      Condition.Requires(older, nameof(older)).IsNotNull();
       if (GetType() != older.GetType()) {
         throw new ArgumentException(string.Format(
                 "Can't merge fields of different types: {0} vs {1}",
-                Type().Name, older.Type().Name));
+                GetType().Name, older.GetType().Name));
       }
       if (_aggregation != older._aggregation) {
         throw new ArgumentException(string.Format(
@@ -76,104 +46,113 @@ namespace InfluxDb {
       MergeWithOlderImpl(older);
     }
 
-    public override string ToString() {
-      return String.Format("{0}: {1}", Type().FullName, Value());
-    }
+    public abstract bool SerializeTo(StringBuilder sb);
 
-    public bool Equals(Field other) {
-      if (other == null) return false;
-      if (Index() != other.Index()) return false;
-      return Object.Equals(Value(), other.Value());
-    }
-
-    public override bool Equals(object obj) {
-      return Equals(obj as Field);
-    }
-
-    public override int GetHashCode() {
-      return Hash.HashWithSeed(Index(), Value());
-    }
+    public abstract override string ToString();
 
     protected abstract void MergeWithOlderImpl(Field older);
 
-    sealed class C0 : Field {
+    sealed class LongField : Field {
       public long Val;
 
-      public override R Visit<R>(Func<long, R> v0, Func<double, R> v1, Func<bool, R> v2, Func<string, R> v3) {
-        return v0.Invoke(Val);
+      public override bool SerializeTo(StringBuilder sb) {
+        sb.Append(Val);
+        sb.Append('i');
+        return true;
       }
+
+      public override string ToString() => $"long: {Val}";
 
       protected override void MergeWithOlderImpl(Field older) {
         switch (_aggregation) {
           case Aggregation.Last:
             break;
           case Aggregation.Sum:
-            Val += ((C0)older).Val;
+            Val += ((LongField)older).Val;
             break;
           case Aggregation.Min:
-            Val = Math.Min(Val, ((C0)older).Val);
+            Val = Math.Min(Val, ((LongField)older).Val);
             break;
           case Aggregation.Max:
-            Val = Math.Max(Val, ((C0)older).Val);
+            Val = Math.Max(Val, ((LongField)older).Val);
             break;
         }
       }
     }
-    sealed class C1 : Field {
+
+    sealed class DoubleField : Field {
       public double Val;
 
-      public override R Visit<R>(Func<long, R> v0, Func<double, R> v1, Func<bool, R> v2, Func<string, R> v3) {
-        return v1.Invoke(Val);
+      public override bool SerializeTo(StringBuilder sb) {
+        sb.AppendFormat("{0:R}", Val);
+        return !double.IsInfinity(Val) && !double.IsNaN(Val);
       }
+
+      public override string ToString() => $"double: {Val}";
 
       protected override void MergeWithOlderImpl(Field older) {
         switch (_aggregation) {
           case Aggregation.Last:
             break;
           case Aggregation.Sum:
-            Val += ((C1)older).Val;
+            Val += ((DoubleField)older).Val;
             break;
           case Aggregation.Min:
-            Val = Math.Min(Val, ((C1)older).Val);
+            Val = Math.Min(Val, ((DoubleField)older).Val);
             break;
           case Aggregation.Max:
-            Val = Math.Max(Val, ((C1)older).Val);
+            Val = Math.Max(Val, ((DoubleField)older).Val);
             break;
         }
       }
     }
-    sealed class C2 : Field {
+
+    sealed class BoolField : Field {
       public bool Val;
 
-      public override R Visit<R>(Func<long, R> v0, Func<double, R> v1, Func<bool, R> v2, Func<string, R> v3) {
-        return v2.Invoke(Val);
+      public override bool SerializeTo(StringBuilder sb) {
+        sb.Append(Val ? "true" : "false");
+        return true;
       }
+
+      public override string ToString() => $"bool: {Val}";
 
       protected override void MergeWithOlderImpl(Field older) {
         switch (_aggregation) {
           case Aggregation.Last:
             break;
           case Aggregation.Sum:
-            Val = Val || ((C2)older).Val;
+            Val = Val || ((BoolField)older).Val;
             break;
           case Aggregation.Min:
-            Val = Val && ((C2)older).Val;
+            Val = Val && ((BoolField)older).Val;
             break;
           case Aggregation.Max:
-            Val = Val || ((C2)older).Val;
+            Val = Val || ((BoolField)older).Val;
             break;
         }
       }
     }
-    sealed class C3 : Field {
+
+    sealed class StringField : Field {
       public string Val;
 
-      public override R Visit<R>(Func<long, R> v0, Func<double, R> v1, Func<bool, R> v2, Func<string, R> v3) {
-        return v3.Invoke(Val);
+      public override bool SerializeTo(StringBuilder sb) {
+        if (Val == null) {
+          sb.Append("null");
+          return false;
+        } else {
+          sb.Append('"');
+          Strings.Escape(Val, '\\', Serializer.FieldSpecialChars, sb);
+          sb.Append('"');
+          return true;
+        }
       }
 
+      public override string ToString() => $"string: {Val}";
+
       protected override void MergeWithOlderImpl(Field older) {
-        string s = ((C3)older).Val;
+        string s = ((StringField)older).Val;
         switch (_aggregation) {
           case Aggregation.Last:
             break;
@@ -191,43 +170,68 @@ namespace InfluxDb {
     }
   }
 
-  public class PointKey {
+  static class NameTable {
+    public static readonly InternTable Tags = new InternTable();
+    public static readonly InternTable Fields = new InternTable();
+  }
+
+  public class PointKey : IEquatable<PointKey> {
     public string Name { get; set; }
-    public Dictionary<string, string> Tags { get; set; }
+    public List<string> Tags { get; set; }
+
+    public override int GetHashCode() {
+      int res = Hash.HashAll(Name);
+      if (Tags == null) return Hash.HashWithSeed(res, Tags);
+      res = Hash.Combine(res, Tags.Count);
+      foreach (string tag in Tags) res = Hash.HashWithSeed(res, tag);
+      return res;
+    }
+
+    public bool Equals(PointKey other) {
+      if (other == null) return false;
+      if (Name != other.Name) return false;
+      if (Tags == null) return other.Tags == null;
+      if (other.Tags == null) return false;
+      if (Tags.Count != other.Tags.Count) return false;
+      for (int i = 0; i != Tags.Count; ++i) {
+        if (Tags[i] != other.Tags[i]) return false;
+      }
+      return true;
+    }
+
+    public override bool Equals(object obj) => Equals(obj as PointKey);
+    public static bool operator ==(PointKey x, PointKey y) => x is null ? y is null : x.Equals(y);
+    public static bool operator !=(PointKey x, PointKey y) => !(x == y);
   }
 
   public class PointValue {
     // Facade treats Timestamp equal to DateTime.MinValue as current time when Push() is called.
     public DateTime Timestamp { get; set; }
-    public Dictionary<string, Field> Fields { get; set; }
+    public List<Field> Fields { get; set; }
 
     public PointValue Clone() {
       var res = new PointValue() { Timestamp = Timestamp };
       if (Fields != null) {
-        res.Fields = new Dictionary<string, Field>();
-        foreach (var elem in Fields) {
-          res.Fields.Add(elem.Key, elem.Value.Clone());
-        }
+        res.Fields = new List<Field>(Fields.Capacity);
+        foreach (Field field in Fields) res.Fields.Add(field?.Clone());
       }
       return res;
     }
 
-    // Mutates `this` but not `older`.
-    // WARNING: `this` aliases `older`.
+    // Mutates `this` but not `older`. After the call, `this` may contain references
+    // to the objects in `older`. It's best to never use `older` afterwards.
     public void MergeWithOlder(PointValue older) {
-      Condition.Requires(older.Timestamp, "older.Timestamp").IsLessOrEqual(Timestamp);
+      Condition.Requires(older.Timestamp, nameof(older.Timestamp)).IsLessOrEqual(Timestamp);
       if (older.Fields == null) return;
       if (Fields == null) {
         Fields = older.Fields;
         return;
       }
-      foreach (var elem in older.Fields) {
-        if (Fields.TryGetValue(elem.Key, out Field f) && f != null) {
-          f.MergeWithOlder(elem.Value);
-        } else {
-          Fields[elem.Key] = elem.Value;
-        }
-      }
+      Fields.MergeFrom(older.Fields, (Field to, Field from) => {
+        if (to == null) return from;
+        to.MergeWithOlder(from);
+        return to;
+      });
     }
   }
 
@@ -238,19 +242,22 @@ namespace InfluxDb {
 
   public class PartialPoint {
     // Can be null.
-    public Dictionary<string, string> Tags { get; set; }
+    public List<string> Tags { get; set; }
     // Can be null.
-    public Dictionary<string, Field> Fields { get; set; }
+    public List<Field> Fields { get; set; }
 
     public void MergeFrom(PartialPoint other) {
       if (other == null) return;
       if (other.Tags != null) {
-        Tags = Tags ?? new Dictionary<string, string>();
-        Tags.MergeFrom(other.Tags);
+        if (Tags == null) {
+          Tags = new List<string>(other.Tags);
+        } else {
+          Tags.MergeFrom(other.Tags, (string to, string from) => from);
+        }
       }
       if (other.Fields != null) {
-        Fields = Fields ?? new Dictionary<string, Field>();
-        Fields.MergeFrom(other.Fields, field => field.Clone());
+        if (Fields == null) Fields = new List<Field>(other.Fields.Capacity);
+        Fields.MergeFrom(other.Fields, (Field to, Field from) => from.Clone());
       }
     }
   }

@@ -46,14 +46,18 @@ namespace InfluxDb {
 
     // Name and point cannot be null.
     public void Push(string name, DateTime t, PartialPoint p) {
+#if DEBUG
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       Override x = GetBase();
       x.MergeFrom(t, p);
       DoPush(name, x);
     }
 
     public void Push(string name, PartialPoint p) {
+#if DEBUG
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       Override x = GetBase();
       x.MergeFrom(null, p);
       DoPush(name, x);
@@ -86,7 +90,9 @@ namespace InfluxDb {
     //
     // Dispose() on the returned object must be called on the same thread.
     public IDisposable With(DateTime t, PartialPoint p) {
+#if DEBUG
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       var x = new Override();
       x.MergeFrom(t, p);
       return _threadLocalOverrides.Value.Add(x);
@@ -96,7 +102,9 @@ namespace InfluxDb {
     //
     // Dispose() on the returned object must be called on the same thread.
     public IDisposable With(PartialPoint p) {
+#if DEBUG
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       var x = new Override();
       x.MergeFrom(null, p);
       return _threadLocalOverrides.Value.Add(x);
@@ -117,14 +125,18 @@ namespace InfluxDb {
     }
 
     public IDisposable GlobalWith(DateTime t, PartialPoint p) {
+#if DEBUG
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       var x = new Override();
       x.MergeFrom(t, p);
       return _globalOverrides.Add(x);
     }
 
     public IDisposable GlobalWith(PartialPoint p) {
+#if DEBUG
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       var x = new Override();
       x.MergeFrom(null, p);
       return _globalOverrides.Add(x);
@@ -153,14 +165,16 @@ namespace InfluxDb {
     // DoPush() stores a reference to `p` and may mutate it at any point in the future.
     // Thus, the caller must not access `p` or any of its subobjects after DoPush() returns.
     void DoPush(string name, Override p) {
+#if DEBUG
       Condition.Requires(name, nameof(name)).IsNotNullOrWhiteSpace();
       Condition.Requires(p, nameof(p)).IsNotNull();
+#endif
       if (p.Fields?.Count > 0) {
         // The sink may mutate the point. We must not mutate it.
         _sink.Push(new Point() {
           Key = new PointKey() {
             Name = name,
-            Tags = p.Tags ?? new Tags()
+            Tags = p.Tags ?? new List<string>()
           },
           Value = new PointValue() {
             Timestamp = p.Timestamp ?? DateTime.UtcNow,
@@ -171,19 +185,26 @@ namespace InfluxDb {
     }
 
     // Copies tags and fields (but not the name) from `cols` to `p`.
-    static void Extract<TColumns>(TColumns cols, PartialPoint p) {
-      MemberExtractor<TColumns>.Instance.Extract
-      (
+    static void Extract<TColumns>(TColumns cols, PartialPoint point) {
+      MemberExtractor<TColumns>.Instance.Extract(
           cols,
-          (key, val) => {
-            p.Tags = p.Tags ?? new Tags();
-            p.Tags[key] = val;  // the last value wins
-                },
-          (key, val) => {
-            p.Fields = p.Fields ?? new Fields();
-            p.Fields[key] = val;  // the last value wins
-                }
-      );
+          point,
+          (object payload, int idx, string tag) => {
+            var p = (PartialPoint)payload;
+            if (p.Tags == null) p.Tags = MakeList<string>(NameTable.Tags.Array.Length);
+            p.Tags[idx] = tag;  // the last value wins
+          },
+          (object payload, int idx, Field field) => {
+            var p = (PartialPoint)payload;
+            if (p.Fields == null) p.Fields = MakeList<Field>(NameTable.Fields.Array.Length);
+            p.Fields[idx] = field;  // the last value wins
+          });
+    }
+
+    static List<T> MakeList<T>(int size) {
+      var res = new List<T>(size);
+      while (size-- != 0) res.Add(default(T));
+      return res;
     }
   }
 
@@ -209,8 +230,10 @@ namespace InfluxDb {
       readonly LinkedListNode<Override> _data;
 
       public Deleter(SingleThreadedOverrides outer, LinkedListNode<Override> data) {
+#if DEBUG
         Condition.Requires(outer, nameof(outer)).IsNotNull();
         Condition.Requires(data, nameof(data)).IsNotNull();
+#endif
         _thread = Thread.CurrentThread.ManagedThreadId;
         _outer = outer;
         _data = data;

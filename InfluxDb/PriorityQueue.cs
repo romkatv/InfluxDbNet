@@ -19,14 +19,14 @@ namespace InfluxDb {
 
     // Requires: queue is not empty.
     public KeyValuePair<TKey, TValue> Front() {
-      Condition.Requires(_data, "_data").IsNotEmpty();
+      Condition.Requires(_data, nameof(_data)).IsNotEmpty();
       var elem = _data.First();
       return new KeyValuePair<TKey, TValue>(elem.Key.Item1, elem.Value);
     }
 
     // Requires: queue is not empty.
     public KeyValuePair<TKey, TValue> Pop() {
-      Condition.Requires(_data, "_data").IsNotEmpty();
+      Condition.Requires(_data, nameof(_data)).IsNotEmpty();
       var elem = _data.First();
       var res = new KeyValuePair<TKey, TValue>(elem.Key.Item1, elem.Value);
       _data.Remove(elem.Key);

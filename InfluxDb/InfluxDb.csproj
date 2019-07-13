@@ -34,6 +34,9 @@
     <Reference Include="Conditions, Version=2.1.0.24, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Conditions.2.1.0\lib\portable-net45+win+wpa81+wp80+MonoAndroid10+MonoTouch10\Conditions.dll</HintPath>
     </Reference>
+    <Reference Include="Nito.Collections.Deque, Version=1.0.4.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.Collections.Deque.1.0.4\lib\netstandard2.0\Nito.Collections.Deque.dll</HintPath>
+    </Reference>
     <Reference Include="NLog, Version=4.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
       <HintPath>..\packages\NLog.4.5.11\lib\net45\NLog.dll</HintPath>
     </Reference>
@@ -55,21 +58,19 @@
   <ItemGroup>
     <Compile Include="Attributes.cs" />
     <Compile Include="Backend.cs" />
-    <Compile Include="Deque.cs" />
-    <Compile Include="DictionaryComparer.cs" />
     <Compile Include="Facade.cs" />
     <Compile Include="Extractors.cs" />
     <Compile Include="Hash.cs" />
+    <Compile Include="InternTable.cs" />
+    <Compile Include="ListExtension.cs" />
     <Compile Include="LoggerExtension.cs" />
     <Compile Include="PeriodicAction.cs" />
     <Compile Include="PriorityQueue.cs" />
     <Compile Include="Publisher.cs" />
     <Compile Include="Reference.cs" />
-    <Compile Include="DictionaryExtension.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ScheduledQueue.cs" />
     <Compile Include="Scheduler.cs" />
-    <Compile Include="SequenceComparer.cs" />
     <Compile Include="Serializer.cs" />
     <Compile Include="Strings.cs" />
     <Compile Include="Types.cs" />

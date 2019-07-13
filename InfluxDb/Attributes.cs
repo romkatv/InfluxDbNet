@@ -29,7 +29,7 @@ namespace InfluxDb {
   [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Class | AttributeTargets.Struct)]
   public class NameAttribute : Attribute {
     public NameAttribute(string name) {
-      Condition.Requires(name, "name").IsNotNullOrEmpty();
+      Condition.Requires(name, nameof(name)).IsNotNullOrEmpty();
       Value = name;
     }
 

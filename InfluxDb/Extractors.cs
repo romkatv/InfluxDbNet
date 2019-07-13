@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 using Conditions;
 using System.Linq.Expressions;
 
-using OnTag = System.Action<string, string>;
-using OnField = System.Action<string, InfluxDb.Field>;
+using OnTag = System.Action<object, int, string>;
+using OnField = System.Action<object, int, InfluxDb.Field>;
 using E = System.Linq.Expressions.Expression;
 
 namespace InfluxDb {
@@ -19,18 +19,30 @@ namespace InfluxDb {
   }
 
   class MemberExtractor {
-    // Composite extractors are at [0].
-    // Simple extractors are at [1].
-    readonly List<Action<object, OnTag, OnField>>[] _extractors = new[] {
-            new List<Action<object, OnTag, OnField>>(),
-            new List<Action<object, OnTag, OnField>>()
-        };
+    struct CompositeExtractor {
+      public MemberExtractor Extractor { get; set; }
+      public Func<object, object> Get { get; set; }
+    }
+
+    struct TagExtractor {
+      public int Idx { get; set; }
+      public Func<object, string> Get { get; set; }
+    }
+
+    struct FieldExtractor {
+      public int Idx { get; set; }
+      public Func<object, Field> Get { get; set; }
+    }
+
+    readonly List<CompositeExtractor> _composites = new List<CompositeExtractor>();
+    readonly List<TagExtractor> _tags = new List<TagExtractor>();
+    readonly List<FieldExtractor> _fields = new List<FieldExtractor>();
 
     public MemberExtractor(Type t) : this(t, new Dictionary<Type, MemberExtractor>()) { }
 
     MemberExtractor(Type t, Dictionary<Type, MemberExtractor> cache) {
-      Condition.Requires(t, "t").IsNotNull();
-      Condition.Requires(cache, "cache").IsNotNull();
+      Condition.Requires(t, nameof(t)).IsNotNull();
+      Condition.Requires(cache, nameof(cache)).IsNotNull();
       cache.Add(t, this);
 
       var flags = BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
@@ -44,76 +56,85 @@ namespace InfluxDb {
       }
     }
 
-    void AddExtractor(MemberInfo member, Type t, Dictionary<Type, MemberExtractor> cache) {
+    void AddExtractor(MemberInfo member, Type container, Dictionary<Type, MemberExtractor> cache) {
       if (member.GetCustomAttribute<IgnoreAttribute>() != null) return;
 
-      Type fieldType;
-      if (member is PropertyInfo) {
-        var prop = (PropertyInfo)member;
+      Type inner;
+      if (member is PropertyInfo prop) {
         if (!prop.CanRead) return;
-        fieldType = prop.PropertyType;
+        inner = prop.PropertyType;
       } else {
         var field = (FieldInfo)member;
-        fieldType = field.FieldType;
+        inner = field.FieldType;
       }
 
       if (member.GetCustomAttribute<TagAttribute>() == null) {
-        AddFieldExtractor(Name(member), fieldType, Aggregation(member), Getter(member.Name, t, fieldType), cache);
+        AddFieldExtractor(container, inner, member, cache);
       } else {
-        if (member.GetCustomAttribute<AggregatedAttribute>() != null)
-          throw new Exception("Attributes Tag and Aggregated are incompatible");
-        AddTagExtractor(Name(member), Getter(member.Name, t, fieldType));
+        if (member.GetCustomAttribute<AggregatedAttribute>() != null) {
+          throw new Exception($"Attributes Tag and Aggregated are incompatible: {container.Name}.{member.Name}");
+        }
+        AddTagExtractor(container, inner, member);
       }
     }
 
-    void AddTagExtractor(string name, Func<object, object> get) {
-      _extractors[1].Add((obj, onTag, onField) => {
-        object x = get(obj);
-        if (x != null) onTag(name, x.ToString());
+    void AddTagExtractor(Type container, Type field, MemberInfo member) {
+      _tags.Add(new TagExtractor() {
+        Idx = NameTable.Tags.Intern(Name(member)),
+        Get = Getter<string>(member.Name, container, field, (E x) => E.Call(x, "ToString", null)),
       });
     }
 
-    void AddFieldExtractor(string name, Type t, Aggregation agg, Func<object, object> get, Dictionary<Type, MemberExtractor> cache) {
+    void AddFieldExtractor(Type container, Type field, MemberInfo member,
+                           Dictionary<Type, MemberExtractor> cache) {
       // Simple field type.
-      Type field = FieldType(ValueType(t));
-      if (field != null) {
-        Func<object, Field> make;
-        {
-          ParameterExpression obj = E.Parameter(typeof(object), "obj");
-          E e = E.Call(typeof(Field), "New", null, E.Convert(E.Convert(obj, t), field), E.Constant(agg));
-          make = E.Lambda<Func<object, Field>>(e, obj).Compile();
-        }
-        _extractors[1].Add((obj, onTag, onField) => {
-          object x = get(obj);
-          if (x != null) onField(name, make(x));
+      Type simple = FieldType(ValueType(field));
+      if (simple != null) {
+        _fields.Add(new FieldExtractor() {
+          Idx = NameTable.Fields.Intern(Name(member)),
+          Get = Getter<Field>(member.Name, container, field, (E x) =>
+            E.Call(typeof(Field), "New", null, E.Convert(x, simple), E.Constant(Aggregation(member))))
         });
         return;
       }
 
       // Composite type.
-      if (ValueType(t).IsPrimitive) throw new Exception("Unsupported type: " + t.Name);
-      MemberExtractor extractor;
-      if (!cache.TryGetValue(ValueType(t), out extractor)) {
-        extractor = new MemberExtractor(ValueType(t), cache);
+      if (ValueType(field).IsPrimitive) {
+        throw new Exception($"Unsupported field type: {field.Name} {container.Name}.{member.Name}");
       }
-      _extractors[0].Add((obj, onTag, onField) => {
-        object x = get(obj);
-        if (x != null) extractor.Extract(x, onTag, onField);
+      if (!cache.TryGetValue(ValueType(field), out MemberExtractor extractor)) {
+        extractor = new MemberExtractor(ValueType(field), cache);
+      }
+      _composites.Add(new CompositeExtractor() {
+        Extractor = extractor,
+        Get = Getter<object>(member.Name, container, field, (E x) => x)
       });
     }
 
-    public void Extract(object obj, OnTag onTag, OnField onField) {
-      Condition.Requires(obj, "obj").IsNotNull();
-      Condition.Requires(onTag, "onTag").IsNotNull();
-      Condition.Requires(onField, "onField").IsNotNull();
-      foreach (var x in _extractors) {
-        foreach (var y in x) {
-          y(obj, onTag, onField);
-        }
+    public void Extract(object obj, object payload, OnTag onTag, OnField onField) {
+#if DEBUG
+      Condition.Requires(obj, nameof(obj)).IsNotNull();
+      Condition.Requires(onTag, nameof(onTag)).IsNotNull();
+      Condition.Requires(onField, nameof(onField)).IsNotNull();
+#endif
+      for (int i = 0, e = _composites.Count; i != e; ++i) {
+        CompositeExtractor x = _composites[i];
+        object v = x.Get(obj);
+        if (v != null) x.Extractor.Extract(v, payload, onTag, onField);
+      }
+      for (int i = 0, e = _tags.Count; i != e; ++i) {
+        TagExtractor x = _tags[i];
+        string v = x.Get(obj);
+        if (v != null) onTag(payload, x.Idx, v);
+      }
+      for (int i = 0, e = _fields.Count; i != e; ++i) {
+        FieldExtractor x = _fields[i];
+        Field v = x.Get(obj);
+        if (v != null) onField(payload, x.Idx, v);
       }
     }
 
-    static Func<object, object> Getter(string name, Type container, Type member) {
+    static Func<object, T> Getter<T>(string name, Type container, Type member, Func<E, E> convert) {
       ParameterExpression obj = E.Parameter(typeof(object), "obj");
       BindingFlags flags = Flags(container, name);
       E x;
@@ -127,19 +148,22 @@ namespace InfluxDb {
         x = E.Property(null, container, name);
       }
 
+      E nul = E.Convert(E.Constant(null), typeof(T));
       if (IsNullable(member)) {
-        x = E.Condition(E.Property(x, "HasValue"), E.Convert(E.Property(x, "Value"), typeof(object)), E.Constant(null));
+        x = E.Condition(E.Property(x, "HasValue"), convert.Invoke(E.Property(x, "Value")), nul);
+      } else if (member.IsClass) {
+        x = E.Condition(E.NotEqual(x, E.Constant(null)), convert.Invoke(x), nul);
       } else {
-        x = E.Convert(x, typeof(object));
+        x = convert.Invoke(x);
       }
-      return E.Lambda<Func<object, object>>(x, obj).Compile();
+      return E.Lambda<Func<object, T>>(x, obj).Compile();
     }
 
     static BindingFlags Flags(Type t, string name) {
       foreach (var f in new[] { BindingFlags.Instance, BindingFlags.Static }) {
         MemberInfo[] m = t.GetMember(name, BindingFlags.FlattenHierarchy | BindingFlags.Public | f);
         if (m != null && m.Length > 0) {
-          Condition.Requires(m.Length, "m.Length").IsEqualTo(1);
+          Condition.Requires(m.Length, nameof(m.Length)).IsEqualTo(1);
           if (m[0].MemberType == MemberTypes.Field) return f | BindingFlags.GetField;
           if (m[0].MemberType == MemberTypes.Property) return f | BindingFlags.GetProperty;
           throw new Exception("Unexpected member type: " + m[0].MemberType);

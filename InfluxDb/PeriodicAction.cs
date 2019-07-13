@@ -20,9 +20,9 @@ namespace InfluxDb {
 
     // Remembers the arguments. Doesn't do anything else. Call Schedule() for something interesting to happen.
     public PeriodicAction(Scheduler scheduler, TimeSpan period, Func<Task> work) {
-      Condition.Requires(scheduler, "scheduler").IsNotNull();
-      Condition.Requires(work, "work").IsNotNull();
-      Condition.Requires(period, "period").IsGreaterOrEqual(TimeSpan.Zero);
+      Condition.Requires(scheduler, nameof(scheduler)).IsNotNull();
+      Condition.Requires(work, nameof(work)).IsNotNull();
+      Condition.Requires(period, nameof(period)).IsGreaterOrEqual(TimeSpan.Zero);
       _scheduler = scheduler;
       _work = work;
       _period = period;

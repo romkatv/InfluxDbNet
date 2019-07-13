@@ -10,7 +10,8 @@ namespace InfluxDb {
   static class Serializer {
     static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     static readonly char[] KeySpecialChars = new char[] { '\\', ' ', ',', '=' };
-    static readonly char[] FieldSpecialChars = new char[] { '\\', '"' };
+
+    public static readonly char[] FieldSpecialChars = new char[] { '\\', '"' };
 
     static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
@@ -36,7 +37,7 @@ namespace InfluxDb {
     static bool WritePoint(Point p, StringBuilder sb) {
       bool res = true;
       res &= WriteKey(p.Key.Name, sb);
-      foreach (var kv in p.Key.Tags.OrderBy(kv => kv.Key)) {
+      foreach (var kv in Named(NameTable.Tags.Array, p.Key.Tags).OrderBy(kv => kv.Key)) {
         sb.Append(',');
         res &= WriteKey(kv.Key, sb);
         sb.Append('=');
@@ -45,13 +46,13 @@ namespace InfluxDb {
 
       sb.Append(' ');
       bool first = true;
-      foreach (var kv in p.Value.Fields) {
+      foreach (var kv in Named(NameTable.Fields.Array, p.Value.Fields)) {
         if (first) first = false;
         else sb.Append(',');
 
         res &= WriteKey(kv.Key, sb);
         sb.Append('=');
-        res &= WriteField(kv.Value, sb);
+        res &= kv.Value.SerializeTo(sb);
       }
 
       sb.Append(' ');
@@ -60,36 +61,6 @@ namespace InfluxDb {
     }
 
     static bool WriteTag(string tag, StringBuilder sb) => WriteKey(tag, sb);
-
-    static bool WriteField(Field f, StringBuilder sb) {
-      return f.Visit
-      (
-          (long x) => {
-            sb.Append(x);
-            sb.Append('i');
-            return true;
-          },
-          (double x) => {
-            sb.AppendFormat("{0:R}", x);
-            return !double.IsInfinity(x) && !double.IsNaN(x);
-          },
-          (bool x) => {
-            sb.Append(x ? "true" : "false");
-            return true;
-          },
-          (string x) => {
-            if (x == null) {
-              sb.Append("null");
-              return false;
-            } else {
-              sb.Append('"');
-              Strings.Escape(x, '\\', FieldSpecialChars, sb);
-              sb.Append('"');
-              return true;
-            }
-          }
-      );
-    }
 
     static void WriteTimestamp(DateTime t, StringBuilder sb) {
       // This code works like a static assert.
@@ -107,6 +78,10 @@ namespace InfluxDb {
         Strings.Escape(key, '\\', KeySpecialChars, sb);
         return true;
       }
+    }
+
+    static IEnumerable<KeyValuePair<string, T>> Named<T>(string[] names, List<T> values) {
+      return values.Where(v => v != null).Select((T v, int i) => new KeyValuePair<string, T>(names[i], v));
     }
   }
 }

@@ -169,18 +169,9 @@ namespace InfluxDb {
       Condition.Requires(name, nameof(name)).IsNotNullOrWhiteSpace();
       Condition.Requires(p, nameof(p)).IsNotNull();
 #endif
-      if (p.Fields?.Count > 0) {
-        // The sink may mutate the point. We must not mutate it.
-        _sink.Push(new Point() {
-          Key = new PointKey() {
-            Name = name,
-            Tags = p.Tags ?? new List<string>()
-          },
-          Value = new PointValue() {
-            Timestamp = p.Timestamp ?? DateTime.UtcNow,
-            Fields = p.Fields
-          },
-        });
+      if (p.Fields.Count > 0) {
+        p.Compact();
+        _sink.Push(name, p, p.Timestamp ?? DateTime.UtcNow);
       }
     }
 
@@ -191,27 +182,19 @@ namespace InfluxDb {
           point,
           (object payload, int idx, string tag) => {
             var p = (PartialPoint)payload;
-            if (p.Tags == null) p.Tags = MakeList<string>(NameTable.Tags.Array.Length);
-            p.Tags[idx] = tag;  // the last value wins
+            p.Tags.Add(new Indexed<string>(idx, tag));
           },
           (object payload, int idx, Field field) => {
             var p = (PartialPoint)payload;
-            if (p.Fields == null) p.Fields = MakeList<Field>(NameTable.Fields.Array.Length);
-            p.Fields[idx] = field;  // the last value wins
+            p.Fields.Add(new Indexed<Field>(idx, field));
           });
-    }
-
-    static List<T> MakeList<T>(int size) {
-      var res = new List<T>(size);
-      while (size-- != 0) res.Add(default(T));
-      return res;
     }
   }
 
   class Override : PartialPoint {
     // If null, doesn't override timestamp.
     // DateTime.MinValue is special. Such values get replaced with DateTime.UtcNow in Facade.Push().
-    public DateTime? Timestamp { get; set; }
+    public DateTime? Timestamp;
 
     public void MergeFrom(Override other) => MergeFrom(other?.Timestamp, other);
 

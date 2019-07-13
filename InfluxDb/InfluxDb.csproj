@@ -21,6 +21,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -29,6 +30,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Conditions, Version=2.1.0.24, Culture=neutral, processorArchitecture=MSIL">
@@ -57,9 +59,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Attributes.cs" />
+    <Compile Include="AutoBuf.cs" />
     <Compile Include="Backend.cs" />
+    <Compile Include="Bits.cs" />
     <Compile Include="Facade.cs" />
     <Compile Include="Extractors.cs" />
+    <Compile Include="FastList.cs" />
     <Compile Include="Hash.cs" />
     <Compile Include="InternTable.cs" />
     <Compile Include="ListExtension.cs" />

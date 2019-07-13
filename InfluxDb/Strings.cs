@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace InfluxDb {
   public static class Strings {
+    static readonly char[] QuoteEscapes = new char[] { '\\', '"' };
+
     enum SymbolType {
       Lower,
       Upper,
@@ -80,12 +82,15 @@ namespace InfluxDb {
       sb.Append(s, start, s.Length - start);
     }
 
-    // Puts the string in double quotes. The existing double quotes are replaced prefixed with backslash.
-    //
-    //   Quote("foo") => "\"foo\""
-    //   Quote("foo\"bar") => "\"foo\\\"bar\""
+    // foo => "foo"
+    // foo\bar"baz => "foo\\bar\"baz"
     public static string Quote(string s) {
-      return "\"" + s.Replace("\"", "\\\"") + "\"";
+      if (s == null) return "null";
+      var sb = new StringBuilder(s.Length + 2);
+      sb.Append('"');
+      Escape(s, '\\', QuoteEscapes, sb);
+      sb.Append('"');
+      return sb.ToString();
     }
   }
 }

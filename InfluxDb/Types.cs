@@ -2,171 +2,159 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace InfluxDb {
-  public enum Aggregation {
+  public enum Aggregation : byte {
     Last,
     Sum,
     Min,
     Max,
   }
 
-  public abstract class Field {
-    protected Aggregation _aggregation;
-
-    public static Field New(long val, Aggregation aggregation = Aggregation.Last) {
-      return new LongField() { Val = val, _aggregation = aggregation };
-    }
-    public static Field New(double val, Aggregation aggregation = Aggregation.Last) {
-      return new DoubleField() { Val = val, _aggregation = aggregation };
-    }
-    public static Field New(bool val, Aggregation aggregation = Aggregation.Last) {
-      return new BoolField() { Val = val, _aggregation = aggregation };
-    }
-    public static Field New(string val, Aggregation aggregation = Aggregation.Last) {
-      return new StringField() { Val = val, _aggregation = aggregation };
+  public struct Field {
+    public enum FieldType : byte {
+      None = 0,
+      Long,
+      Double,
+      Bool,
+      String
     }
 
-    public Field Clone() => (Field)MemberwiseClone();
+    readonly Aggregation _aggregation;
+    readonly FieldType _type;
+    bool _bool;
+    long _long;
+    double _double;
+    string _string;
 
-    public void MergeWithOlder(Field older) {
-      Condition.Requires(older, nameof(older)).IsNotNull();
-      if (GetType() != older.GetType()) {
-        throw new ArgumentException(string.Format(
-                "Can't merge fields of different types: {0} vs {1}",
-                GetType().Name, older.GetType().Name));
-      }
-      if (_aggregation != older._aggregation) {
-        throw new ArgumentException(string.Format(
-            "Aggregation function must be the same for two values to be mergeable: {0} vs {1}",
-            _aggregation, older._aggregation));
-      }
-      MergeWithOlderImpl(older);
+    public static Field New(long val, Aggregation agg) => new Field(FieldType.Long, agg) { _long = val };
+    public static Field New(double val, Aggregation agg) => new Field(FieldType.Double, agg) { _double = val };
+    public static Field New(bool val, Aggregation agg) => new Field(FieldType.Bool, agg) { _bool = val };
+    public static Field New(string val, Aggregation agg) => new Field(FieldType.String, agg) { _string = val };
+
+    Field(FieldType type, Aggregation agg) {
+      _aggregation = agg;
+      _type = type;
+      _bool = false;
+      _long = 0;
+      _double = 0;
+      _string = null;
     }
 
-    public abstract bool SerializeTo(StringBuilder sb);
+    public bool HasValue => _type != FieldType.None;
 
-    public abstract override string ToString();
-
-    protected abstract void MergeWithOlderImpl(Field older);
-
-    sealed class LongField : Field {
-      public long Val;
-
-      public override bool SerializeTo(StringBuilder sb) {
-        sb.Append(Val);
-        sb.Append('i');
-        return true;
+    public void MergeWithOlder(in Field older) {
+      if (_type != older._type) {
+        throw new ArgumentException($"Can't merge fields of different types: {_type} vs {older._type}");
       }
-
-      public override string ToString() => $"long: {Val}";
-
-      protected override void MergeWithOlderImpl(Field older) {
-        switch (_aggregation) {
-          case Aggregation.Last:
-            break;
-          case Aggregation.Sum:
-            Val += ((LongField)older).Val;
-            break;
-          case Aggregation.Min:
-            Val = Math.Min(Val, ((LongField)older).Val);
-            break;
-          case Aggregation.Max:
-            Val = Math.Max(Val, ((LongField)older).Val);
-            break;
-        }
-      }
-    }
-
-    sealed class DoubleField : Field {
-      public double Val;
-
-      public override bool SerializeTo(StringBuilder sb) {
-        sb.AppendFormat("{0:R}", Val);
-        return !double.IsInfinity(Val) && !double.IsNaN(Val);
-      }
-
-      public override string ToString() => $"double: {Val}";
-
-      protected override void MergeWithOlderImpl(Field older) {
-        switch (_aggregation) {
-          case Aggregation.Last:
-            break;
-          case Aggregation.Sum:
-            Val += ((DoubleField)older).Val;
-            break;
-          case Aggregation.Min:
-            Val = Math.Min(Val, ((DoubleField)older).Val);
-            break;
-          case Aggregation.Max:
-            Val = Math.Max(Val, ((DoubleField)older).Val);
-            break;
-        }
-      }
-    }
-
-    sealed class BoolField : Field {
-      public bool Val;
-
-      public override bool SerializeTo(StringBuilder sb) {
-        sb.Append(Val ? "true" : "false");
-        return true;
-      }
-
-      public override string ToString() => $"bool: {Val}";
-
-      protected override void MergeWithOlderImpl(Field older) {
-        switch (_aggregation) {
-          case Aggregation.Last:
-            break;
-          case Aggregation.Sum:
-            Val = Val || ((BoolField)older).Val;
-            break;
-          case Aggregation.Min:
-            Val = Val && ((BoolField)older).Val;
-            break;
-          case Aggregation.Max:
-            Val = Val || ((BoolField)older).Val;
-            break;
-        }
+      switch (_type) {
+        case FieldType.Long:
+          switch (_aggregation) {
+            case Aggregation.Last:
+              break;
+            case Aggregation.Sum:
+              _long += older._long;
+              break;
+            case Aggregation.Min:
+              _long = Math.Min(_long, older._long);
+              break;
+            case Aggregation.Max:
+              _long = Math.Max(_long, older._long);
+              break;
+          }
+          break;
+        case FieldType.Double:
+          switch (_aggregation) {
+            case Aggregation.Last:
+              break;
+            case Aggregation.Sum:
+              _double += older._double;
+              break;
+            case Aggregation.Min:
+              _double = Math.Min(_double, older._double);
+              break;
+            case Aggregation.Max:
+              _double = Math.Max(_double, older._double);
+              break;
+          }
+          break;
+        case FieldType.Bool:
+          switch (_aggregation) {
+            case Aggregation.Last:
+              break;
+            case Aggregation.Sum:
+              _bool = _bool || older._bool;
+              break;
+            case Aggregation.Min:
+              _bool = _bool && older._bool;
+              break;
+            case Aggregation.Max:
+              _bool = _bool || older._bool;
+              break;
+          }
+          break;
+        case FieldType.String:
+          switch (_aggregation) {
+            case Aggregation.Last:
+              break;
+            case Aggregation.Sum:
+              if (_string != null || older._string != null) {
+                _string = (older._string ?? "") + (_string ?? "");
+              }
+              break;
+            case Aggregation.Min:
+              if (string.CompareOrdinal(older._string, _string) < 0) _string = older._string;
+              break;
+            case Aggregation.Max:
+              if (string.CompareOrdinal(older._string, _string) > 0) _string = older._string;
+              break;
+          }
+          break;
       }
     }
 
-    sealed class StringField : Field {
-      public string Val;
-
-      public override bool SerializeTo(StringBuilder sb) {
-        if (Val == null) {
-          sb.Append("null");
-          return false;
-        } else {
-          sb.Append('"');
-          Strings.Escape(Val, '\\', Serializer.FieldSpecialChars, sb);
-          sb.Append('"');
+    public bool SerializeTo(StringBuilder sb) {
+      switch (_type) {
+        case FieldType.Long:
+          sb.Append(_long);
+          sb.Append('i');
           return true;
-        }
+        case FieldType.Double:
+          sb.AppendFormat("{0:R}", _double);
+          return !double.IsInfinity(_double) && !double.IsNaN(_double);
+        case FieldType.Bool:
+          sb.Append(_bool ? "true" : "false");
+          return true;
+        case FieldType.String:
+          if (_string == null) {
+            sb.Append("null");
+            return false;
+          } else {
+            sb.Append('"');
+            Strings.Escape(_string, '\\', Serializer.FieldSpecialChars, sb);
+            sb.Append('"');
+            return true;
+          }
       }
+      return false;
+    }
 
-      public override string ToString() => $"string: {Val}";
-
-      protected override void MergeWithOlderImpl(Field older) {
-        string s = ((StringField)older).Val;
-        switch (_aggregation) {
-          case Aggregation.Last:
-            break;
-          case Aggregation.Sum:
-            if (Val != null || s != null) Val = (s ?? "") + (Val ?? "");
-            break;
-          case Aggregation.Min:
-            if (string.CompareOrdinal(s, Val) < 0) Val = s;
-            break;
-          case Aggregation.Max:
-            if (string.CompareOrdinal(s, Val) > 0) Val = s;
-            break;
-        }
+    public override string ToString() {
+      switch (_type) {
+        case FieldType.Long:
+          return $"long: {_long}";
+        case FieldType.Double:
+          return $"double: {_double}";
+        case FieldType.Bool:
+          return $"bool: {_bool}";
+        case FieldType.String:
+          return $"string: {Strings.Quote(_string)}";
       }
+      return "<error>";
     }
   }
 
@@ -175,96 +163,185 @@ namespace InfluxDb {
     public static readonly InternTable Fields = new InternTable();
   }
 
-  public class PointKey : IEquatable<PointKey> {
-    public string Name { get; set; }
-    public List<string> Tags { get; set; }
+  public struct Indexed<T> {
+    public Indexed(int index, in T value) {
+      Index = index;
+      Value = value;
+    }
 
+    public readonly int Index;
+    public readonly T Value;
+  }
+
+  public class PartialPoint {
+    static ThreadLocal<AutoBuf<int>> _buf = new ThreadLocal<AutoBuf<int>>(() => new AutoBuf<int>());
+
+    public FastList<Indexed<string>> Tags;
+    public FastList<Indexed<Field>> Fields;
+
+    public void MergeFrom(PartialPoint p) {
+      Tags.AddRange(p.Tags);
+      Fields.AddRange(p.Fields);
+    }
+
+    public void Compact() {
+      AutoBuf<int> buf = _buf.Value;
+      Compact(ref Tags, buf);
+      Compact(ref Fields, buf);
+    }
+
+    static void Compact<T>(ref FastList<Indexed<T>> list, AutoBuf<int> buf) {
+      for (int i = 0, e = list.Count; i != e; ++i) {
+        buf[list[i].Index] = i;
+      }
+      int j = 0;
+      for (int i = 0, e = list.Count; i != e; ++i) {
+        Indexed<T> x = list[i];
+        if (buf[x.Index] == i) list[j++] = x;
+      }
+      list.ResizeUninitialized(j);
+    }
+  }
+
+  public struct PointKey : IEquatable<PointKey> {
+    struct Stash {
+      public bool Seen;
+      public string Tag;
+    }
+
+    static ThreadLocal<AutoBuf<Stash>> _buf =
+        new ThreadLocal<AutoBuf<Stash>>(() => new AutoBuf<Stash>());
+
+    public string Name;
+    public FastList<Indexed<string>> Tags;
+
+    // Requires: There are no duplicate indices in Tags.
     public override int GetHashCode() {
       int res = Hash.HashAll(Name);
-      if (Tags == null) return Hash.HashWithSeed(res, Tags);
-      res = Hash.Combine(res, Tags.Count);
-      foreach (string tag in Tags) res = Hash.HashWithSeed(res, tag);
+      for (int i = 0, e = Tags.Count; i != e; ++i) {
+        Indexed<string> tag = Tags[i];
+        // Using operator+ instead of Hash.Combine() to have hash independent of element order.
+        res += Hash.HashWithSeed(tag.Index, tag.Value);
+      }
       return res;
     }
 
+    // Requires: There are no duplicate indices in Tags.
     public bool Equals(PointKey other) {
       if (other == null) return false;
       if (Name != other.Name) return false;
-      if (Tags == null) return other.Tags == null;
-      if (other.Tags == null) return false;
       if (Tags.Count != other.Tags.Count) return false;
-      for (int i = 0; i != Tags.Count; ++i) {
-        if (Tags[i] != other.Tags[i]) return false;
+      AutoBuf<Stash> buf = _buf.Value;
+      for (int i = 0, e = Tags.Count; i != e; ++i) {
+        buf[Tags[i].Index] = new Stash() { Tag = Tags[i].Value };
+      }
+      for (int i = 0, e = Tags.Count; i != e; ++i) {
+        Indexed<string> tag = other.Tags[i];
+        Stash stash = buf[tag.Index];
+        if (stash.Seen) return false;
+        stash.Seen = true;
+        buf[tag.Index] = stash;
+      }
+      for (int i = 0, e = Tags.Count; i != e; ++i) {
+        if (!buf[Tags[i].Index].Seen) return false;
       }
       return true;
     }
 
-    public override bool Equals(object obj) => Equals(obj as PointKey);
-    public static bool operator ==(PointKey x, PointKey y) => x is null ? y is null : x.Equals(y);
-    public static bool operator !=(PointKey x, PointKey y) => !(x == y);
+    public override bool Equals(object obj) => obj is PointKey k && Equals(k);
+    public static bool operator ==(in PointKey x, in PointKey y) => x.Equals(y);
+    public static bool operator !=(in PointKey x, in PointKey y) => !(x == y);
+
+    public PointKey Clone() {
+      var res = new PointKey() { Name = Name };
+      res.Tags.AddRange(Tags);
+      return res;
+    }
   }
 
   public class PointValue {
     // Facade treats Timestamp equal to DateTime.MinValue as current time when Push() is called.
-    public DateTime Timestamp { get; set; }
-    public List<Field> Fields { get; set; }
+    public DateTime Timestamp;
+    public FastList<Field> Fields;
+
+    public PointValue() { }
+
+    // Requires: There are no duplicate indices in fields.
+    public PointValue(in DateTime t, in FastList<Indexed<Field>> fields) {
+      Timestamp = t;
+      for (int i = 0, e = fields.Count; i != e; ++i) {
+        ref Indexed<Field> src = ref fields[i];
+        while (Fields.Count <= src.Index) Fields.Add(new Field());
+        Fields[src.Index] = src.Value;
+      }
+    }
+
+    // Requires: There are no duplicate indices in fields.
+    public void MergeWithNewer(in FastList<Indexed<Field>> newer, in DateTime t) {
+      Condition.Requires(t, nameof(t)).IsGreaterOrEqual(Timestamp);
+      for (int i = 0, e = newer.Count; i != e; ++i) {
+        ref Indexed<Field> src = ref newer[i];
+        while (Fields.Count <= src.Index) Fields.Add(new Field());
+        ref Field dst = ref Fields[src.Index];
+        if (dst.HasValue) {
+          Field field = src.Value;
+          field.MergeWithOlder(dst);
+          dst = field;
+        } else {
+          dst = src.Value;
+        }
+      }
+      Timestamp = t;
+    }
+
+    // Requires: There are no duplicate indices in fields.
+    public void MergeWithOlder(in FastList<Indexed<Field>> older) {
+      for (int i = 0, e = older.Count; i != e; ++i) {
+        ref Indexed<Field> src = ref older[i];
+        while (Fields.Count <= src.Index) Fields.Add(new Field());
+        ref Field dst = ref Fields[src.Index];
+        if (dst.HasValue) {
+          dst.MergeWithOlder(src.Value);
+        } else {
+          dst = src.Value;
+        }
+      }
+    }
+
+    // Requires: There are no duplicate indices in fields.
+    public void MergeWithOlder(PointValue older) {
+      Condition.Requires(older.Timestamp, nameof(older.Timestamp)).IsLessOrEqual(Timestamp);
+      for (int i = 0, e = Math.Min(Fields.Count, older.Fields.Count); i != e; ++i) {
+        ref Field src = ref older.Fields[i];
+        if (!src.HasValue) continue;
+        ref Field dst = ref Fields[i];
+        if (dst.HasValue) {
+          dst.MergeWithOlder(src);
+        } else {
+          dst = src;
+        }
+      }
+      if (Fields.Count < older.Fields.Count) {
+        Fields.AddRange(older.Fields, Fields.Count, older.Fields.Count - Fields.Count);
+      }
+    }
 
     public PointValue Clone() {
       var res = new PointValue() { Timestamp = Timestamp };
-      if (Fields != null) {
-        res.Fields = new List<Field>(Fields.Capacity);
-        foreach (Field field in Fields) res.Fields.Add(field?.Clone());
-      }
+      res.Fields.AddRange(Fields);
       return res;
-    }
-
-    // Mutates `this` but not `older`. After the call, `this` may contain references
-    // to the objects in `older`. It's best to never use `older` afterwards.
-    public void MergeWithOlder(PointValue older) {
-      Condition.Requires(older.Timestamp, nameof(older.Timestamp)).IsLessOrEqual(Timestamp);
-      if (older.Fields == null) return;
-      if (Fields == null) {
-        Fields = older.Fields;
-        return;
-      }
-      Fields.MergeFrom(older.Fields, (Field to, Field from) => {
-        if (to == null) return from;
-        to.MergeWithOlder(from);
-        return to;
-      });
     }
   }
 
   public class Point {
-    public PointKey Key { get; set; }
-    public PointValue Value { get; set; }
-  }
-
-  public class PartialPoint {
-    // Can be null.
-    public List<string> Tags { get; set; }
-    // Can be null.
-    public List<Field> Fields { get; set; }
-
-    public void MergeFrom(PartialPoint other) {
-      if (other == null) return;
-      if (other.Tags != null) {
-        if (Tags == null) {
-          Tags = new List<string>(other.Tags);
-        } else {
-          Tags.MergeFrom(other.Tags, (string to, string from) => from);
-        }
-      }
-      if (other.Fields != null) {
-        if (Fields == null) Fields = new List<Field>(other.Fields.Capacity);
-        Fields.MergeFrom(other.Fields, (Field to, Field from) => from.Clone());
-      }
-    }
+    public PointKey Key;
+    public PointValue Value;
+    public Point Clone() => new Point() { Key = Key, Value = Value?.Clone() };
   }
 
   public interface ISink {
-    // The caller must not mutate `p`. ISink may mutate it.
-    void Push(Point p);
+    // Does not mutate `p`.
+    void Push(string name, PartialPoint p, DateTime t);
   }
 
   public interface IBackend {

@@ -107,7 +107,7 @@ namespace InfluxDb {
       }
       _composites.Add(new CompositeExtractor() {
         Extractor = extractor,
-        Get = Getter<object>(member.Name, container, field, (E x) => x)
+        Get = Getter<object>(member.Name, container, field, (E x) => E.Convert(x, typeof(object)))
       });
     }
 
@@ -130,7 +130,7 @@ namespace InfluxDb {
       for (int i = 0, e = _fields.Count; i != e; ++i) {
         FieldExtractor x = _fields[i];
         Field v = x.Get(obj);
-        if (v != null) onField(payload, x.Idx, v);
+        if (v.HasValue) onField(payload, x.Idx, v);
       }
     }
 
@@ -148,11 +148,11 @@ namespace InfluxDb {
         x = E.Property(null, container, name);
       }
 
-      E nul = E.Convert(E.Constant(null), typeof(T));
+      E def = E.Default(typeof(T));
       if (IsNullable(member)) {
-        x = E.Condition(E.Property(x, "HasValue"), convert.Invoke(E.Property(x, "Value")), nul);
+        x = E.Condition(E.Property(x, "HasValue"), convert.Invoke(E.Property(x, "Value")), def);
       } else if (member.IsClass) {
-        x = E.Condition(E.NotEqual(x, E.Constant(null)), convert.Invoke(x), nul);
+        x = E.Condition(E.NotEqual(x, E.Constant(null)), convert.Invoke(x), def);
       } else {
         x = convert.Invoke(x);
       }

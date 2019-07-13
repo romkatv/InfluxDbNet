@@ -80,8 +80,19 @@ namespace InfluxDb {
       }
     }
 
-    static IEnumerable<KeyValuePair<string, T>> Named<T>(string[] names, List<T> values) {
-      return values.Where(v => v != null).Select((T v, int i) => new KeyValuePair<string, T>(names[i], v));
+    static IEnumerable<KeyValuePair<string, Field>> Named(string[] names, FastList<Field> values) {
+      for (int i = 0; i != values.Count; ++i) {
+        if (!values[i].HasValue) continue;
+        yield return new KeyValuePair<string, Field>(names[i], values[i]);
+      }
+    }
+
+    static IEnumerable<KeyValuePair<string, string>> Named(string[] names, FastList<Indexed<string>> values) {
+      for (int i = 0; i != values.Count; ++i) {
+        Indexed<string> x = values[i];
+        if (x.Value == null) continue;
+        yield return new KeyValuePair<string, string>(names[x.Index], x.Value);
+      }
     }
   }
 }

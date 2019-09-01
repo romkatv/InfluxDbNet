@@ -17,5 +17,11 @@ namespace InfluxDb {
     }
 
     public static int NextPow2(int x) => (int)NextPow2((uint)x);
+
+    public static bool TrySet(ref ulong bits, int n) {
+      if ((bits & (1UL << n)) != 0) return false;
+      bits |= 1UL << n;
+      return true;
+    }
   }
 }

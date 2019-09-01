@@ -28,7 +28,7 @@ namespace InfluxDb {
     }
 
     public void ResizeUninitialized(int size) {
-      if (_data != null && size <= _data.Length) {
+      if (size == 0 || _data != null && size <= _data.Length) {
         Count = size;
         return;
       }

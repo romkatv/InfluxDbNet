@@ -115,9 +115,9 @@ namespace Benchmarks {
       var cfg = new InfluxDb.PublisherConfig() {
         MaxPointsPerBatch = -1,
         MaxPointsPerSeries = -1,
-        SamplingPeriod = TimeSpan.Zero,
-        SendPeriod = TimeSpan.FromMilliseconds(100),
-        SendTimeout = TimeSpan.FromSeconds(10),
+        SamplingPeriod = TimeSpan.FromDays(1),
+        SendPeriod = TimeSpan.FromDays(1),
+        SendTimeout = TimeSpan.FromDays(1),
       };
       var pub = new InfluxDb.Publisher(new NullBackend(), cfg);
       InfluxDb.Facade.Instance = new InfluxDb.Facade(pub);
@@ -216,6 +216,12 @@ namespace Benchmarks {
         Field2 = 2.0,
         Field3 = 3.0,
         Field4 = 4.0,
+      });
+    }
+
+    [BenchmarkDotNet.Attributes.Benchmark]
+    public InfluxDb.PartialPoint Extract_16_0_0() {
+      return InfluxDb.Facade.Extract(new Metric16() {
       });
     }
 
@@ -348,6 +354,27 @@ namespace Benchmarks {
         Field14 = 14.0,
         Field15 = 15.0,
         Field16 = 16.0,
+      });
+    }
+
+    public InfluxDb.PartialPoint Extract_16_16_0() {
+      return InfluxDb.Facade.Extract(new Metric16() {
+        Tag1 = "Tag1",
+        Tag2 = "Tag2",
+        Tag3 = "Tag3",
+        Tag4 = "Tag4",
+        Tag5 = "Tag5",
+        Tag6 = "Tag6",
+        Tag7 = "Tag7",
+        Tag8 = "Tag8",
+        Tag9 = "Tag9",
+        Tag10 = "Tag10",
+        Tag11 = "Tag11",
+        Tag12 = "Tag12",
+        Tag13 = "Tag13",
+        Tag14 = "Tag14",
+        Tag15 = "Tag15",
+        Tag16 = "Tag16",
       });
     }
 
@@ -500,45 +527,111 @@ namespace Benchmarks {
 
     [BenchmarkDotNet.Attributes.Benchmark]
     public void With_16_16_16() {
-      InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16).Dispose();
+      InfluxDb.Facade.Instance?.With(_metric_16_16_16).Dispose();
     }
 
     [BenchmarkDotNet.Attributes.Benchmark]
     public void With_16_0_1_Push_16_0_1() {
-      using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_0_1)) {
+      using (InfluxDb.Facade.Instance?.With(_metric_16_0_1)) {
         Push(nameof(_metric_16_0_1), _metric_16_0_1);
       }
     }
 
     [BenchmarkDotNet.Attributes.Benchmark]
     public void With_16_0_1_Push_16_16_16() {
-      using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_0_1)) {
+      using (InfluxDb.Facade.Instance?.With(_metric_16_0_1)) {
         Push(nameof(_metric_16_16_16), _metric_16_16_16);
       }
     }
 
     [BenchmarkDotNet.Attributes.Benchmark]
     public void With_16_16_16_Push_16_0_1() {
-      using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16)) {
+      using (InfluxDb.Facade.Instance?.With(_metric_16_16_16)) {
         Push(nameof(_metric_16_0_1), _metric_16_0_1);
       }
     }
 
     [BenchmarkDotNet.Attributes.Benchmark]
     public void With_16_16_16_Push_16_16_16() {
-      using (InfluxDb.Facade.Instance?.With(new DateTime(1), _metric_16_16_16)) {
+      using (InfluxDb.Facade.Instance?.With(_metric_16_16_16)) {
         Push(nameof(_metric_16_16_16), _metric_16_16_16);
       }
     }
 
     void Push(string name, InfluxDb.PartialPoint p) {
+      p.Timestamp = new DateTime(++_ticks);
       // Ensure that all timestamps are distinct.
-      InfluxDb.Facade.Instance?.Push(name, new DateTime(++_ticks), p);
+      InfluxDb.Facade.Instance?.Push(name, p);
     }
   }
 
   class Program {
     static void Main(string[] args) {
+      // Extract_16_0_0                161 ns
+      // Extract_16_16_0               399 ns
+      // Extract_16_0_16               594 ns
+      // Push_16_0_1                  1469 ns
+      // Push_16_16_1                 1938 ns
+      // Push_16_0_16                 3461 ns
+      // With_16_16_16                1044 ns
+      // With_16_16_16_Push_16_16_16  7167 ns
+      var bm = new BM_Timeseries();
+      foreach (TimeSpan t in new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3) }) {
+        DateTime start = DateTime.UtcNow;
+        long n = 0;
+        do {
+          for (int i = 0; i != 16; ++i) bm.With_16_16_16_Push_16_16_16();
+          n += 16;
+        } while (DateTime.UtcNow < start + t);
+        Console.WriteLine("{0}ns", (long)((DateTime.UtcNow - start).TotalSeconds * 1e9) / n);
+      }
+      return;
+      // BenchmarkDotNet=v0.10.14, OS=Windows 10.0.18362
+      // Intel Core i9-7900X CPU 3.30GHz, 1 CPU, 20 logical and 10 physical cores
+      //   [Host]     : .NET Framework 4.6.1 (CLR 4.0.30319.42000), 32bit LegacyJIT-v4.8.3815.0
+      //   DefaultJob : .NET Framework 4.6.1 (CLR 4.0.30319.42000), 32bit LegacyJIT-v4.8.3815.0
+      // 
+      // 
+      //                       Method |        Mean |       Error |      StdDev |
+      // ---------------------------- |------------:|------------:|------------:|
+      //                Extract_1_0_1 |    180.8 ns |   0.3623 ns |   0.3389 ns |
+      //                Extract_1_1_1 |    248.6 ns |   0.8373 ns |   0.7832 ns |
+      //                Extract_4_0_1 |    233.7 ns |   1.3704 ns |   1.2819 ns |
+      //                Extract_4_0_4 |    493.0 ns |   2.4533 ns |   2.2949 ns |
+      //                Extract_4_1_1 |    287.0 ns |   5.5649 ns |   5.2054 ns |
+      //                Extract_4_1_4 |    563.3 ns |   2.1291 ns |   1.9916 ns |
+      //                Extract_4_4_1 |    450.3 ns |   0.3490 ns |   0.3265 ns |
+      //                Extract_4_4_4 |    710.2 ns |   0.8878 ns |   0.7870 ns |
+      //               Extract_16_0_1 |    413.8 ns |   1.3987 ns |   1.3084 ns |
+      //               Extract_16_0_4 |    677.7 ns |   0.8150 ns |   0.7624 ns |
+      //              Extract_16_0_16 |  1,712.0 ns |   6.0546 ns |   5.6635 ns |
+      //               Extract_16_1_1 |    472.5 ns |   1.1169 ns |   0.9901 ns |
+      //               Extract_16_1_4 |    738.1 ns |   1.5856 ns |   1.3240 ns |
+      //              Extract_16_1_16 |  1,832.7 ns |  26.7428 ns |  25.0152 ns |
+      //               Extract_16_4_1 |    694.3 ns |   6.8277 ns |   5.7014 ns |
+      //               Extract_16_4_4 |    955.0 ns |   4.7263 ns |   4.1897 ns |
+      //              Extract_16_4_16 |  2,059.6 ns |   8.5224 ns |   7.9719 ns |
+      //              Extract_16_16_1 |  1,247.7 ns |   2.4620 ns |   2.3030 ns |
+      //              Extract_16_16_4 |  1,538.6 ns |   4.9619 ns |   4.1434 ns |
+      //             Extract_16_16_16 |  2,641.9 ns |   8.2202 ns |   7.2870 ns |
+      //                  Push_16_0_1 |  1,758.2 ns |  34.8897 ns |  77.3132 ns |
+      //                  Push_16_1_1 |  2,193.1 ns |  47.3906 ns | 139.7323 ns |
+      //                  Push_16_4_1 |  2,974.8 ns |  58.8186 ns | 111.9086 ns |
+      //                 Push_16_16_1 |  4,121.1 ns |  82.3818 ns | 180.8300 ns |
+      //                  Push_16_0_4 |  2,983.3 ns |  58.0097 ns |  90.3141 ns |
+      //                  Push_16_1_4 |  3,192.1 ns |  57.2298 ns |  82.0773 ns |
+      //                  Push_16_4_4 |  3,524.9 ns |  69.6540 ns | 179.7991 ns |
+      //                 Push_16_16_4 |  5,829.0 ns | 115.8931 ns | 187.1458 ns |
+      //                 Push_16_0_16 |  7,281.8 ns | 144.9090 ns | 318.0788 ns |
+      //                 Push_16_1_16 |  6,855.8 ns | 134.9628 ns | 165.7464 ns |
+      //                 Push_16_4_16 |  7,997.7 ns | 157.5863 ns | 275.9997 ns |
+      //                Push_16_16_16 | 10,614.3 ns | 186.8772 ns | 174.8050 ns |
+      //                With_16_16_16 |  2,473.1 ns |  48.8332 ns |  45.6786 ns |
+      //      With_16_0_1_Push_16_0_1 |  3,095.6 ns |  61.3837 ns | 122.5898 ns |
+      //    With_16_0_1_Push_16_16_16 | 11,110.3 ns | 218.8642 ns | 484.9879 ns |
+      //    With_16_16_16_Push_16_0_1 | 13,807.3 ns | 263.6681 ns | 258.9573 ns |
+      //  With_16_16_16_Push_16_16_16 | 16,482.0 ns | 314.8516 ns | 362.5836 ns |
+      //
       // Host Process Environment Information:
       // BenchmarkDotNet.Core=v0.9.9.0
       // OS=Microsoft Windows NT 6.2.9200.0
@@ -592,7 +685,7 @@ namespace Benchmarks {
       //
       //                ===[ Legend ]===
       //
-      // Extract_1_0_1 measures the performance of Timeseries.Extrac(obj) where
+      // Extract_X_Y_Z measures the performance of Timeseries.Extrac(obj) where
       // typeof(obj) has X declared tags and X declared fields, and obj has Y set
       // tags and Z set fields.
       //

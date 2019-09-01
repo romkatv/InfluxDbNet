@@ -21,17 +21,17 @@ namespace InfluxDb {
   class MemberExtractor {
     struct CompositeExtractor {
       public MemberExtractor Extractor { get; set; }
-      public Func<object, object> Get { get; set; }
+      public Func<Pools, object, object> Get { get; set; }
     }
 
     struct TagExtractor {
       public int Idx { get; set; }
-      public Func<object, string> Get { get; set; }
+      public Func<Pools, object, string> Get { get; set; }
     }
 
     struct FieldExtractor {
       public int Idx { get; set; }
-      public Func<object, Field> Get { get; set; }
+      public Func<Pools, object, Field> Get { get; set; }
     }
 
     readonly List<CompositeExtractor> _composites = new List<CompositeExtractor>();
@@ -81,7 +81,7 @@ namespace InfluxDb {
     void AddTagExtractor(Type container, Type field, MemberInfo member) {
       _tags.Add(new TagExtractor() {
         Idx = NameTable.Tags.Intern(Name(member)),
-        Get = Getter<string>(member.Name, container, field, (E x) => E.Call(x, "ToString", null)),
+        Get = Getter<string>(member.Name, container, field, (E pools, E obj) => E.Call(obj, "ToString", null)),
       });
     }
 
@@ -92,8 +92,8 @@ namespace InfluxDb {
       if (simple != null) {
         _fields.Add(new FieldExtractor() {
           Idx = NameTable.Fields.Intern(Name(member)),
-          Get = Getter<Field>(member.Name, container, field, (E x) =>
-            E.Call(typeof(Field), "New", null, E.Convert(x, simple), E.Constant(Aggregation(member))))
+          Get = Getter<Field>(member.Name, container, field, (E pools, E obj) =>
+            E.Call(typeof(Field), "New", null, E.Convert(obj, simple), E.Constant(Aggregation(member)), pools))
         });
         return;
       }
@@ -107,34 +107,32 @@ namespace InfluxDb {
       }
       _composites.Add(new CompositeExtractor() {
         Extractor = extractor,
-        Get = Getter<object>(member.Name, container, field, (E x) => E.Convert(x, typeof(object)))
+        // TODO: Instead of Get, put Extract in CompositeExtractor that returns void.
+        // To avoid boxing.
+        Get = Getter<object>(member.Name, container, field, (E pools, E obj) => E.Convert(obj, typeof(object)))
       });
     }
 
-    public void Extract(object obj, object payload, OnTag onTag, OnField onField) {
-#if DEBUG
-      Condition.Requires(obj, nameof(obj)).IsNotNull();
-      Condition.Requires(onTag, nameof(onTag)).IsNotNull();
-      Condition.Requires(onField, nameof(onField)).IsNotNull();
-#endif
+    public void Extract(Pools pools, object obj, object payload, OnTag onTag, OnField onField) {
       for (int i = 0, e = _composites.Count; i != e; ++i) {
         CompositeExtractor x = _composites[i];
-        object v = x.Get(obj);
-        if (v != null) x.Extractor.Extract(v, payload, onTag, onField);
+        object v = x.Get(pools, obj);
+        if (v != null) x.Extractor.Extract(pools, v, payload, onTag, onField);
       }
       for (int i = 0, e = _tags.Count; i != e; ++i) {
         TagExtractor x = _tags[i];
-        string v = x.Get(obj);
+        string v = x.Get(pools, obj);
         if (v != null) onTag(payload, x.Idx, v);
       }
       for (int i = 0, e = _fields.Count; i != e; ++i) {
         FieldExtractor x = _fields[i];
-        Field v = x.Get(obj);
-        if (v.HasValue) onField(payload, x.Idx, v);
+        Field v = x.Get(pools, obj);
+        if (v != null) onField(payload, x.Idx, v);
       }
     }
 
-    static Func<object, T> Getter<T>(string name, Type container, Type member, Func<E, E> convert) {
+    static Func<Pools, object, T> Getter<T>(string name, Type container, Type member, Func<E, E, E> convert) {
+      ParameterExpression pools = E.Parameter(typeof(Pools), "pools");
       ParameterExpression obj = E.Parameter(typeof(object), "obj");
       BindingFlags flags = Flags(container, name);
       E x;
@@ -148,15 +146,15 @@ namespace InfluxDb {
         x = E.Property(null, container, name);
       }
 
-      E def = E.Default(typeof(T));
+      E nul = E.Convert(E.Constant(null), typeof(T));
       if (IsNullable(member)) {
-        x = E.Condition(E.Property(x, "HasValue"), convert.Invoke(E.Property(x, "Value")), def);
+        x = E.Condition(E.Property(x, "HasValue"), convert.Invoke(pools, E.Property(x, "Value")), nul);
       } else if (member.IsClass) {
-        x = E.Condition(E.NotEqual(x, E.Constant(null)), convert.Invoke(x), def);
+        x = E.Condition(E.NotEqual(x, nul), convert.Invoke(pools, x), nul);
       } else {
-        x = convert.Invoke(x);
+        x = convert.Invoke(pools, x);
       }
-      return E.Lambda<Func<object, T>>(x, obj).Compile();
+      return E.Lambda<Func<Pools, object, T>>(x, pools, obj).Compile();
     }
 
     static BindingFlags Flags(Type t, string name) {

@@ -1,6 +1,7 @@
 ﻿using Conditions;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,146 +16,194 @@ namespace InfluxDb {
     Max,
   }
 
-  public struct Field {
-    public enum FieldType : byte {
-      None = 0,
-      Long,
-      Double,
-      Bool,
-      String
+  public abstract class Field {
+    protected Aggregation _aggregation;
+
+    internal static Field New(long val, Aggregation aggregation, Pools p) {
+      var res = p.LongField.Acquire() ?? new LongField() { _aggregation = aggregation };
+      res.Val = val;
+      return res;
+    }
+    internal static Field New(double val, Aggregation aggregation, Pools p) {
+      var res = p.DoubleField.Acquire() ?? new DoubleField() { _aggregation = aggregation };
+      res.Val = val;
+      return res;
+    }
+    internal static Field New(bool val, Aggregation aggregation, Pools p) {
+      var res = p.BoolField.Acquire() ?? new BoolField() { _aggregation = aggregation };
+      res.Val = val;
+      return res;
+    }
+    internal static Field New(string val, Aggregation aggregation, Pools p) {
+      var res = p.StringField.Acquire() ?? new StringField() { _aggregation = aggregation };
+      res.Val = val;
+      return res;
     }
 
-    readonly Aggregation _aggregation;
-    readonly FieldType _type;
-    bool _bool;
-    long _long;
-    double _double;
-    string _string;
-
-    public static Field New(long val, Aggregation agg) => new Field(FieldType.Long, agg) { _long = val };
-    public static Field New(double val, Aggregation agg) => new Field(FieldType.Double, agg) { _double = val };
-    public static Field New(bool val, Aggregation agg) => new Field(FieldType.Bool, agg) { _bool = val };
-    public static Field New(string val, Aggregation agg) => new Field(FieldType.String, agg) { _string = val };
-
-    Field(FieldType type, Aggregation agg) {
-      _aggregation = agg;
-      _type = type;
-      _bool = false;
-      _long = 0;
-      _double = 0;
-      _string = null;
-    }
-
-    public bool HasValue => _type != FieldType.None;
-
-    public void MergeWithOlder(in Field older) {
-      if (_type != older._type) {
-        throw new ArgumentException($"Can't merge fields of different types: {_type} vs {older._type}");
+    public void MergeWithNewer(Field newer) {
+      Debug.Assert(newer != null);
+      if (GetType() != newer.GetType()) {
+        throw new ArgumentException(string.Format(
+                "Can't merge fields of different types: {0} vs {1}",
+                GetType().Name, newer.GetType().Name));
       }
-      switch (_type) {
-        case FieldType.Long:
-          switch (_aggregation) {
-            case Aggregation.Last:
-              break;
-            case Aggregation.Sum:
-              _long += older._long;
-              break;
-            case Aggregation.Min:
-              _long = Math.Min(_long, older._long);
-              break;
-            case Aggregation.Max:
-              _long = Math.Max(_long, older._long);
-              break;
-          }
+      if (_aggregation != newer._aggregation) {
+        throw new ArgumentException(string.Format(
+            "Aggregation function must be the same for two values to be mergeable: {0} vs {1}",
+            _aggregation, newer._aggregation));
+      }
+      MergeWithNewerImpl(newer);
+    }
+
+    public abstract bool SerializeTo(StringBuilder sb);
+
+    public abstract override string ToString();
+
+    public abstract Field Clone(Pools p);
+
+    internal abstract void Release(Pools p);
+
+    protected abstract void MergeWithNewerImpl(Field older);
+  }
+
+  public sealed class LongField : Field {
+    public long Val;
+
+    public override bool SerializeTo(StringBuilder sb) {
+      sb.Append(Val);
+      sb.Append('i');
+      return true;
+    }
+
+    public override string ToString() => $"long: {Val}";
+
+    public override Field Clone(Pools p) => Field.New(Val, _aggregation, p);
+
+    internal override void Release(Pools p) => p.LongField.Release(this);
+
+    protected override void MergeWithNewerImpl(Field newer) {
+      switch (_aggregation) {
+        case Aggregation.Last:
+          Val = ((LongField)newer).Val;
           break;
-        case FieldType.Double:
-          switch (_aggregation) {
-            case Aggregation.Last:
-              break;
-            case Aggregation.Sum:
-              _double += older._double;
-              break;
-            case Aggregation.Min:
-              _double = Math.Min(_double, older._double);
-              break;
-            case Aggregation.Max:
-              _double = Math.Max(_double, older._double);
-              break;
-          }
+        case Aggregation.Sum:
+          Val += ((LongField)newer).Val;
           break;
-        case FieldType.Bool:
-          switch (_aggregation) {
-            case Aggregation.Last:
-              break;
-            case Aggregation.Sum:
-              _bool = _bool || older._bool;
-              break;
-            case Aggregation.Min:
-              _bool = _bool && older._bool;
-              break;
-            case Aggregation.Max:
-              _bool = _bool || older._bool;
-              break;
-          }
+        case Aggregation.Min:
+          Val = Math.Min(Val, ((LongField)newer).Val);
           break;
-        case FieldType.String:
-          switch (_aggregation) {
-            case Aggregation.Last:
-              break;
-            case Aggregation.Sum:
-              if (_string != null || older._string != null) {
-                _string = (older._string ?? "") + (_string ?? "");
-              }
-              break;
-            case Aggregation.Min:
-              if (string.CompareOrdinal(older._string, _string) < 0) _string = older._string;
-              break;
-            case Aggregation.Max:
-              if (string.CompareOrdinal(older._string, _string) > 0) _string = older._string;
-              break;
-          }
+        case Aggregation.Max:
+          Val = Math.Max(Val, ((LongField)newer).Val);
           break;
       }
     }
+  }
 
-    public bool SerializeTo(StringBuilder sb) {
-      switch (_type) {
-        case FieldType.Long:
-          sb.Append(_long);
-          sb.Append('i');
-          return true;
-        case FieldType.Double:
-          sb.AppendFormat("{0:R}", _double);
-          return !double.IsInfinity(_double) && !double.IsNaN(_double);
-        case FieldType.Bool:
-          sb.Append(_bool ? "true" : "false");
-          return true;
-        case FieldType.String:
-          if (_string == null) {
-            sb.Append("null");
-            return false;
-          } else {
-            sb.Append('"');
-            Strings.Escape(_string, '\\', Serializer.FieldSpecialChars, sb);
-            sb.Append('"');
-            return true;
-          }
-      }
-      return false;
+  public sealed class DoubleField : Field {
+    public double Val;
+
+    public override bool SerializeTo(StringBuilder sb) {
+      sb.AppendFormat("{0:R}", Val);
+      return !double.IsInfinity(Val) && !double.IsNaN(Val);
     }
 
-    public override string ToString() {
-      switch (_type) {
-        case FieldType.Long:
-          return $"long: {_long}";
-        case FieldType.Double:
-          return $"double: {_double}";
-        case FieldType.Bool:
-          return $"bool: {_bool}";
-        case FieldType.String:
-          return $"string: {Strings.Quote(_string)}";
+    public override string ToString() => $"double: {Val}";
+
+    public override Field Clone(Pools p) => Field.New(Val, _aggregation, p);
+
+    internal override void Release(Pools p) => p.DoubleField.Release(this);
+
+    protected override void MergeWithNewerImpl(Field newer) {
+      switch (_aggregation) {
+        case Aggregation.Last:
+          Val = ((DoubleField)newer).Val;
+          break;
+        case Aggregation.Sum:
+          Val += ((DoubleField)newer).Val;
+          break;
+        case Aggregation.Min:
+          Val = Math.Min(Val, ((DoubleField)newer).Val);
+          break;
+        case Aggregation.Max:
+          Val = Math.Max(Val, ((DoubleField)newer).Val);
+          break;
       }
-      return "<error>";
+    }
+  }
+
+  public sealed class BoolField : Field {
+    public bool Val;
+
+    public override bool SerializeTo(StringBuilder sb) {
+      sb.Append(Val ? "true" : "false");
+      return true;
+    }
+
+    public override string ToString() => $"bool: {Val}";
+
+    public override Field Clone(Pools p) => Field.New(Val, _aggregation, p);
+
+    internal override void Release(Pools p) => p.BoolField.Release(this);
+
+    protected override void MergeWithNewerImpl(Field newer) {
+      switch (_aggregation) {
+        case Aggregation.Last:
+          Val = ((BoolField)newer).Val;
+          break;
+        case Aggregation.Sum:
+          Val = Val || ((BoolField)newer).Val;
+          break;
+        case Aggregation.Min:
+          Val = Val && ((BoolField)newer).Val;
+          break;
+        case Aggregation.Max:
+          Val = Val || ((BoolField)newer).Val;
+          break;
+      }
+    }
+  }
+
+  public sealed class StringField : Field {
+    public string Val;
+
+    public override bool SerializeTo(StringBuilder sb) {
+      if (Val == null) {
+        sb.Append("null");
+        return false;
+      } else {
+        sb.Append('"');
+        Strings.Escape(Val, '\\', Serializer.FieldSpecialChars, sb);
+        sb.Append('"');
+        return true;
+      }
+    }
+
+    public override string ToString() => $"string: {Strings.Quote(Val)}";
+
+    public override Field Clone(Pools p) => Field.New(Val, _aggregation, p);
+
+    internal override void Release(Pools p) => p.StringField.Release(this);
+
+    protected override void MergeWithNewerImpl(Field newer) {
+      string s = ((StringField)newer).Val;
+      switch (_aggregation) {
+        case Aggregation.Last:
+          Val = s;
+          break;
+        case Aggregation.Sum:
+          if (Val == null) {
+            Val = s;
+          } else if (s != null) {
+            Val += s;
+          }
+          break;
+        case Aggregation.Min:
+          if (string.CompareOrdinal(s, Val) < 0) Val = s;
+          break;
+        case Aggregation.Max:
+          if (string.CompareOrdinal(s, Val) > 0) Val = s;
+          break;
+      }
     }
   }
 
@@ -164,184 +213,266 @@ namespace InfluxDb {
   }
 
   public struct Indexed<T> {
-    public Indexed(int index, in T value) {
-      Index = index;
-      Value = value;
-    }
-
-    public readonly int Index;
-    public readonly T Value;
+    public int Index;
+    public T Value;
   }
 
-  public class PartialPoint {
-    static ThreadLocal<AutoBuf<int>> _buf = new ThreadLocal<AutoBuf<int>>(() => new AutoBuf<int>());
+  public struct Versioned<T> {
+    public ulong Version;
+    public T Value;
+  }
 
+  public class PartialPoint : IntrusiveListNode<PartialPoint> {
+    public DateTime? Timestamp;
     public FastList<Indexed<string>> Tags;
     public FastList<Indexed<Field>> Fields;
 
-    public void MergeFrom(PartialPoint p) {
-      Tags.AddRange(p.Tags);
-      Fields.AddRange(p.Fields);
-    }
-
-    public void Compact() {
-      AutoBuf<int> buf = _buf.Value;
-      Compact(ref Tags, buf);
-      Compact(ref Fields, buf);
-    }
-
-    static void Compact<T>(ref FastList<Indexed<T>> list, AutoBuf<int> buf) {
-      for (int i = 0, e = list.Count; i != e; ++i) {
-        buf[list[i].Index] = i;
+    public void CopyFrom(Pools pools, PartialPoint other) {
+      Timestamp = other.Timestamp;
+      Tags.ResizeUninitialized(0);
+      Fields.ResizeUninitialized(0);
+      Tags.AddRange(other.Tags);
+      Fields.AddRange(other.Fields);
+      for (int i = 0, e = Fields.Count; i != e; ++i) {
+        ref Field field = ref Fields[i].Value;
+        if (field != null) field = field.Clone(pools);
       }
-      int j = 0;
-      for (int i = 0, e = list.Count; i != e; ++i) {
-        Indexed<T> x = list[i];
-        if (buf[x.Index] == i) list[j++] = x;
-      }
-      list.ResizeUninitialized(j);
     }
   }
 
-  public struct PointKey : IEquatable<PointKey> {
-    struct Stash {
-      public bool Seen;
-      public string Tag;
-    }
+  public class ShardedPoint {
+    public PartialPoint Global;
+    public IntrusiveListNode<PartialPoint>.List Local = new IntrusiveListNode<PartialPoint>.List();
+    public PartialPoint Final = new PartialPoint();
+    public Pools Pools = new Pools();
+  }
 
-    static ThreadLocal<AutoBuf<Stash>> _buf =
-        new ThreadLocal<AutoBuf<Stash>>(() => new AutoBuf<Stash>());
+  public struct PointKey : IEquatable<PointKey> {
+    class Dense {
+      public ulong Mask;
+      public ulong Hash;
+      public string[] Tags;
+    }
 
     public string Name;
-    public FastList<Indexed<string>> Tags;
 
-    // Requires: There are no duplicate indices in Tags.
-    public override int GetHashCode() {
-      int res = Hash.HashAll(Name);
-      for (int i = 0, e = Tags.Count; i != e; ++i) {
-        Indexed<string> tag = Tags[i];
-        // Using operator+ instead of Hash.Combine() to have hash independent of element order.
-        res += Hash.HashWithSeed(tag.Index, tag.Value);
+    // Either ShardedPoint or Dense.
+    public object Tags;
+
+    public IEnumerable<KeyValuePair<string, string>> GetTags() {
+      string[] names = NameTable.Tags.Array;
+      if (Tags is Dense d) {
+        for (int i = 0; i != d.Tags.Length; ++i) {
+          string v = d.Tags[i];
+          if (v != null) {
+            yield return new KeyValuePair<string, string>(names[i], v);
+          }
+        }
+      } else {
+        var s = (ShardedPoint)Tags;
+        Debug.Assert(s != null);
+        ulong mask = 0;
+        IEnumerable<KeyValuePair<string, string>> TagsFromPoint(PartialPoint p) {
+          for (int i = p.Tags.Count - 1; i >= 0; --i) {
+            Indexed<string> tag = p.Tags[i];
+            if (Bits.TrySet(ref mask, tag.Index)) {
+              yield return new KeyValuePair<string, string>(names[tag.Index], tag.Value);
+            }
+          }
+        }
+        foreach (var kv in TagsFromPoint(s.Final)) yield return kv;
+        for (PartialPoint node = s.Local.Last; node != null; node = node.Prev) {
+          foreach (var kv in TagsFromPoint(node)) yield return kv;
+        }
+        foreach (var kv in TagsFromPoint(s.Global)) yield return kv;
       }
-      return res;
     }
 
-    // Requires: There are no duplicate indices in Tags.
+    public override int GetHashCode() {
+      Debug.Assert(Name != null);
+      Debug.Assert(Tags != null);
+      if (Tags is Dense d) {
+        unchecked { return (int)d.Hash; }
+      }
+      var p = (ShardedPoint)Tags;
+      Debug.Assert(p != null);
+      ulong hash = Hash.Mix(Name.GetHashCode());
+      ulong mask = 0;
+      HashPoint(ref mask, ref hash, p.Final);
+      for (PartialPoint node = p.Local.Last; node != null; node = node.Prev) {
+        HashPoint(ref mask, ref hash, node);
+      }
+      HashPoint(ref mask, ref hash, p.Global);
+      Hash.Combine(ref hash, mask);
+      unchecked { return (int)hash; }
+    }
+
     public bool Equals(PointKey other) {
       if (other == null) return false;
       if (Name != other.Name) return false;
-      if (Tags.Count != other.Tags.Count) return false;
-      AutoBuf<Stash> buf = _buf.Value;
-      for (int i = 0, e = Tags.Count; i != e; ++i) {
-        buf[Tags[i].Index] = new Stash() { Tag = Tags[i].Value };
+      {
+        if (Tags is ShardedPoint p) return Eq(p, (Dense)other.Tags);
       }
-      for (int i = 0, e = Tags.Count; i != e; ++i) {
-        Indexed<string> tag = other.Tags[i];
-        Stash stash = buf[tag.Index];
-        if (stash.Seen) return false;
-        stash.Seen = true;
-        buf[tag.Index] = stash;
+      {
+        return other.Tags is ShardedPoint p ? Eq(p, (Dense)Tags) : Eq((Dense)Tags, (Dense)other.Tags);
       }
-      for (int i = 0, e = Tags.Count; i != e; ++i) {
-        if (!buf[Tags[i].Index].Seen) return false;
-      }
-      return true;
     }
 
     public override bool Equals(object obj) => obj is PointKey k && Equals(k);
     public static bool operator ==(in PointKey x, in PointKey y) => x.Equals(y);
     public static bool operator !=(in PointKey x, in PointKey y) => !(x == y);
 
-    public PointKey Clone() {
-      var res = new PointKey() { Name = Name };
-      res.Tags.AddRange(Tags);
-      return res;
+    public void Compact() {
+      var p = (ShardedPoint)Tags;
+      Debug.Assert(p != null);
+      var d = new Dense() {
+        Mask = 0,
+        Hash = Hash.Mix(Name.GetHashCode()),
+        Tags = new string[NameTable.Tags.Array.Length],
+      };
+      CompactPoint(d, p.Final);
+      for (PartialPoint node = p.Local.Last; node != null; node = node.Prev) {
+        CompactPoint(d, node);
+      }
+      CompactPoint(d, p.Global);
+      Hash.Combine(ref d.Hash, d.Mask);
+      Tags = d;
+    }
+
+    static void HashPoint(ref ulong mask, ref ulong hash, PartialPoint p) {
+      for (int i = p.Tags.Count - 1; i >= 0; --i) {
+        ref Indexed<string> tag = ref p.Tags[i];
+        if (Bits.TrySet(ref mask, tag.Index)) Hash.Combine(ref hash, tag.Value.GetHashCode());
+      }
+    }
+
+    static void CompactPoint(Dense d, PartialPoint p) {
+      for (int i = p.Tags.Count - 1; i >= 0; --i) {
+        ref Indexed<string> tag = ref p.Tags[i];
+        ref string slot = ref d.Tags[tag.Index];
+        if (slot == null) {
+          slot = tag.Value;
+          Hash.Combine(ref d.Hash, tag.Value.GetHashCode());
+        }
+      }
+    }
+
+    static bool Eq(ShardedPoint p, Dense d) {
+      Debug.Assert(p != null);
+      Debug.Assert(d != null);
+      ulong mask = 0;
+      if (!EqPoint(ref mask, p.Final, d.Tags)) return false;
+      for (PartialPoint node = p.Local.Last; node != null; node = node.Prev) {
+        if (!EqPoint(ref mask, node, d.Tags)) return false;
+      }
+      if (!EqPoint(ref mask, p.Global, d.Tags)) return false;
+      return mask == d.Mask;
+    }
+
+    static bool Eq(Dense x, Dense y) {
+      Debug.Assert(x != null);
+      Debug.Assert(y != null);
+      if (x.Mask != y.Mask) return false;
+      for (int i = 0, e = Math.Min(x.Tags.Length, y.Tags.Length); i != e; ++i) {
+        if (x.Tags[i] != y.Tags[i]) return false;
+      }
+      return true;
+    }
+
+    static bool EqPoint(ref ulong mask, PartialPoint p, string[] tags) {
+      for (int i = p.Tags.Count - 1; i >= 0; --i) {
+        ref Indexed<string> tag = ref p.Tags[i];
+        if (Bits.TrySet(ref mask, tag.Index) && tag.Value != tags[tag.Index]) return false;
+      }
+      return true;
     }
   }
 
   public class PointValue {
     // Facade treats Timestamp equal to DateTime.MinValue as current time when Push() is called.
     public DateTime Timestamp;
-    public FastList<Field> Fields;
+    public FastList<Versioned<Field>> Fields;
 
-    public PointValue() { }
-
-    // Requires: There are no duplicate indices in fields.
-    public PointValue(in DateTime t, in FastList<Indexed<Field>> fields) {
-      Timestamp = t;
-      for (int i = 0, e = fields.Count; i != e; ++i) {
-        ref Indexed<Field> src = ref fields[i];
-        while (Fields.Count <= src.Index) Fields.Add(new Field());
-        Fields[src.Index] = src.Value;
-      }
-    }
-
-    // Requires: There are no duplicate indices in fields.
-    public void MergeWithNewer(in FastList<Indexed<Field>> newer, in DateTime t) {
-      Condition.Requires(t, nameof(t)).IsGreaterOrEqual(Timestamp);
-      for (int i = 0, e = newer.Count; i != e; ++i) {
-        ref Indexed<Field> src = ref newer[i];
-        while (Fields.Count <= src.Index) Fields.Add(new Field());
-        ref Field dst = ref Fields[src.Index];
-        if (dst.HasValue) {
-          Field field = src.Value;
-          field.MergeWithOlder(dst);
-          dst = field;
-        } else {
-          dst = src.Value;
-        }
-      }
-      Timestamp = t;
-    }
-
-    // Requires: There are no duplicate indices in fields.
-    public void MergeWithOlder(in FastList<Indexed<Field>> older) {
-      for (int i = 0, e = older.Count; i != e; ++i) {
-        ref Indexed<Field> src = ref older[i];
-        while (Fields.Count <= src.Index) Fields.Add(new Field());
-        ref Field dst = ref Fields[src.Index];
-        if (dst.HasValue) {
-          dst.MergeWithOlder(src.Value);
-        } else {
-          dst = src.Value;
+    public IEnumerable<KeyValuePair<string, Field>> GetFields() {
+      string[] names = NameTable.Fields.Array;
+      for (int i = 0; i != Fields.Count; ++i) {
+        Field field = Fields[i].Value;
+        if (field != null) {
+          yield return new KeyValuePair<string, Field>(names[i], field);
         }
       }
     }
 
-    // Requires: There are no duplicate indices in fields.
-    public void MergeWithOlder(PointValue older) {
-      Condition.Requires(older.Timestamp, nameof(older.Timestamp)).IsLessOrEqual(Timestamp);
-      for (int i = 0, e = Math.Min(Fields.Count, older.Fields.Count); i != e; ++i) {
-        ref Field src = ref older.Fields[i];
-        if (!src.HasValue) continue;
-        ref Field dst = ref Fields[i];
-        if (dst.HasValue) {
-          dst.MergeWithOlder(src);
-        } else {
-          dst = src;
-        }
+    public void MergeWith(ShardedPoint p, DateTime t, ulong version) {
+      bool newer = t >= Timestamp;
+      if (newer) Timestamp = t;
+      Fields.ResizeUninitialized(NameTable.Fields.Array.Length);
+      MergePoint(p.Final, version, newer, p.Pools, from_pool: true);
+      for (PartialPoint node = p.Local.Last; node != null; node = node.Prev) {
+        MergePoint(node, version, newer, p.Pools, from_pool: false);
       }
-      if (Fields.Count < older.Fields.Count) {
-        Fields.AddRange(older.Fields, Fields.Count, older.Fields.Count - Fields.Count);
+      MergePoint(p.Global, version, newer, p.Pools, from_pool: true);
+    }
+
+    public void MergeWithNewer(PointValue p, Pools pools) {
+      Condition.Requires(p.Timestamp, nameof(p.Timestamp)).IsGreaterOrEqual(Timestamp);
+      Timestamp = p.Timestamp;
+      if (Fields.Count < p.Fields.Count) Fields.ResizeUninitialized(p.Fields.Count);
+      for (int i = 0, e = p.Fields.Count; i != e; ++i) {
+        Field other = p.Fields[i].Value;
+        if (other == null) continue;
+        ref Field my = ref Fields[i].Value;
+        MergeField(pools, ref Fields[i].Value, other, newer: true, from_pool: true);
       }
     }
 
-    public PointValue Clone() {
+    public PointValue Clone(Pools pools) {
       var res = new PointValue() { Timestamp = Timestamp };
       res.Fields.AddRange(Fields);
+      for (int i = 0, e = Fields.Count; i != e; ++i) {
+        ref Field field = ref res.Fields[i].Value;
+        if (field != null) field = field.Clone(pools);
+      }
       return res;
+    }
+
+    void MergePoint(PartialPoint p, ulong version, bool newer, Pools pools, bool from_pool) {
+      for (int i = p.Fields.Count - 1; i >= 0; --i) {
+        ref Indexed<Field> other = ref p.Fields[i];
+        ref Versioned<Field> my = ref Fields[other.Index];
+        if (my.Version == version) {
+          if (pools != null) other.Value.Release(pools);
+          continue;
+        }
+        my.Version = version;
+        MergeField(pools, ref my.Value, other.Value, newer, from_pool);
+      }
+    }
+
+    void MergeField(Pools pools, ref Field my, Field other, bool newer, bool from_pool) {
+      if (my == null) {
+        my = from_pool ? other : other.Clone(pools);
+        return;
+      }
+      if (newer) {
+        my.MergeWithNewer(other);
+        if (from_pool) other.Release(pools);
+      } else {
+        if (!from_pool) other = other.Clone(pools);
+        other.MergeWithNewer(my);
+        my.Release(pools);
+        my = other;
+      }
     }
   }
 
   public class Point {
     public PointKey Key;
     public PointValue Value;
-    public Point Clone() => new Point() { Key = Key, Value = Value?.Clone() };
   }
 
   public interface ISink {
-    // Does not mutate `p`.
-    void Push(string name, PartialPoint p, DateTime t);
+    void Push(string name, ShardedPoint p);
   }
 
   public interface IBackend {

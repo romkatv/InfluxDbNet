@@ -64,6 +64,7 @@ namespace InfluxDb {
   class PointBuffer {
     static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
+    readonly PointKey _key;
     // Negative means infinity.
     readonly int _maxSize;
     readonly OnFull _onFull;
@@ -75,47 +76,56 @@ namespace InfluxDb {
     PointValue _bottom = new PointValue();
     // Has _bottom been modified?
     bool _bottomDirty = false;
+    ulong _version = 0;
 
     // Does not mutate `key`.
     public PointBuffer(PointKey key, int maxSize, OnFull onFull, TimeSpan samplingPeriod) {
       Condition.Requires(maxSize, nameof(maxSize)).IsNotInRange(0, 1);
       Condition.Requires(samplingPeriod, nameof(samplingPeriod)).IsGreaterOrEqual(TimeSpan.Zero);
-      Key = key.Clone();
+      _key = key;
       _maxSize = maxSize;
       _onFull = onFull;
       _samplingPeriod = samplingPeriod;
     }
 
-    public PointKey Key { get; }
     public int Count { get { return _points.Count + (_bottomDirty ? 1 : 0); } }
     public bool Full { get { return _maxSize >= 0 && 2 * Count >= _maxSize; } }
     public bool Overfull { get { return _maxSize >= 0 && Count > _maxSize; } }
 
     // Does not mutate `f`.
-    public void Add(DateTime t, in FastList<Indexed<Field>> f) {
-      if (t <= _bottom.Timestamp) {
-        if (t == _bottom.Timestamp) {
-          _bottom.MergeWithNewer(f, t);
-        } else {
-          _bottom.MergeWithOlder(f);
-        }
-        _bottomDirty = true;
-        MaybeCompact();
+    public void Add(ShardedPoint p) {
+      DateTime t = Timestamp(p);
+      int idx = _points.Count;
+      ++_version;
+
+      // Handle the most common case first. This is just an optimization. This block doesn't
+      // affect visible behavior.
+      if (idx > 0 && t >= _points[idx - 1].Timestamp && t < _points[idx - 1].Timestamp + _samplingPeriod) {
+        _points[idx - 1].MergeWith(p, t, _version);
         return;
       }
-      int idx = _points.Count;
+
+      if (t <= _bottom.Timestamp) {
+        _bottom.MergeWith(p, t, _version);
+        _bottomDirty = true;
+        MaybeCompact(p.Pools);
+        return;
+      }
+
       // This is essentially insertion sort.
       // Since timestamps usually come in asceding order, it should be fast.
       while (idx > 0 && _points[idx - 1].Timestamp > t) --idx;
       if (idx > 0 && _points[idx - 1].Timestamp == t) {
-        _points[idx - 1].MergeWithNewer(f, t);
+        _points[idx - 1].MergeWith(p, t, _version);
         return;
       }
+
       if (idx > 0 && idx < _points.Count && UselessMiddle(_points[idx - 1].Timestamp, t, _points[idx].Timestamp)) {
         // The point is in between two existing points both of which are within _samplingPeriod.
-        _points[idx].MergeWithOlder(f);
+        _points[idx].MergeWith(p, t, _version);
         return;
       }
+
       // Can we drop _points[idx - 1]?
       bool uselessLeft = idx > 1 &&
           UselessMiddle(_points[idx - 2].Timestamp, _points[idx - 1].Timestamp, t);
@@ -123,17 +133,20 @@ namespace InfluxDb {
       bool uselessRight = idx + 1 < _points.Count &&
           UselessMiddle(t, _points[idx].Timestamp, _points[idx + 1].Timestamp);
       if (uselessLeft && uselessRight) {
-        _points[idx - 1].MergeWithNewer(f, t);
-        _points[idx + 1].MergeWithOlder(_points[idx]);
-        _points.RemoveAt(idx);
+        _points[idx - 1].MergeWith(p, t, _version);
+        _points[idx].MergeWithNewer(_points[idx + 1], p.Pools);
+        _points.RemoveAt(idx + 1);
       } else if (uselessLeft) {
-        _points[idx - 1].MergeWithNewer(f, t);
+        _points[idx - 1].MergeWith(p, t, _version);
       } else if (uselessRight) {
-        _points[idx + 1].MergeWithOlder(_points[idx]);
-        _points[idx] = new PointValue(t, f);
+        _points[idx].MergeWithNewer(_points[idx + 1], p.Pools);
+        _points[idx + 1] = _points[idx];
+        _points[idx] = new PointValue();
+        _points[idx].MergeWith(p, t, _version);
       } else {
-        _points.Insert(idx, new PointValue(t, f));
-        MaybeCompact();
+        _points.Insert(idx, new PointValue());
+        _points[idx].MergeWith(p, t, _version);
+        MaybeCompact(p.Pools);
       }
     }
 
@@ -143,17 +156,17 @@ namespace InfluxDb {
       n = n < 0 ? Count : Math.Min(n, Count);
       if (n == 0) return;
       if (_bottomDirty) {
-        target.Add(new Point() { Key = Key, Value = _bottom });
+        target.Add(new Point() { Key = _key, Value = _bottom });
         _bottomDirty = false;
         --n;
       }
       while (n-- > 0) {
-        target.Add(new Point() { Key = Key, Value = _points.RemoveFromFront() });
+        target.Add(new Point() { Key = _key, Value = _points.RemoveFromFront() });
       }
-      _bottom = target.Last().Value.Clone();
+      _bottom = target.Last().Value.Clone(new Pools());
     }
 
-    void MaybeCompact() {
+    void MaybeCompact(Pools pools) {
       if (!Overfull) return;
       switch (_onFull) {
         case OnFull.DropOldest:
@@ -162,7 +175,8 @@ namespace InfluxDb {
           do {
             PointValue p = _points.RemoveFromFront();
             // The constructor guarantees that _maxSize > 1. Hence _points can't be empty.
-            _points[0].MergeWithOlder(p);
+            p.MergeWithNewer(_points[0], pools);
+            _points[0] = p;
           } while (Overfull);
           break;
         case OnFull.Block:
@@ -175,8 +189,16 @@ namespace InfluxDb {
 
     // Can we drop p2?
     // Requires: p1.Timestamp <= p2.Timestamp <= p3.Timestamp.
-    bool UselessMiddle(in DateTime t1, in DateTime t2, in DateTime t3) {
+    bool UselessMiddle(DateTime t1, DateTime t2, DateTime t3) {
       return t2 - t1 < _samplingPeriod && t3 - t2 < _samplingPeriod;
+    }
+
+    static DateTime Timestamp(ShardedPoint p) {
+      if (p.Final.Timestamp.HasValue) return p.Final.Timestamp.Value;
+      for (PartialPoint node = p.Local.Last; node != null; node = node.Prev) {
+        if (node.Timestamp.HasValue) return node.Timestamp.Value;
+      }
+      return p.Global.Timestamp ?? DateTime.UtcNow;
     }
   }
 
@@ -213,24 +235,20 @@ namespace InfluxDb {
     }
 
     // Requires: There are no duplicate indices in fields and tags.
-    public void Push(string name, PartialPoint p, DateTime t) {
-#if DEBUG
-      Condition.Requires(name, nameof(name)).IsNotNull();
-      Condition.Requires(p, nameof(p)).IsNotNull();
-      Condition.Requires(p.Fields.Count, nameof(p.Fields.Count)).IsGreaterThan(0);
-#endif
-      var key = new PointKey() { Name = name, Tags = p.Tags };
+    public void Push(string name, ShardedPoint p) {
+      var key = new PointKey() { Name = name, Tags = p };
       if (!_points.TryGetValue(key, out Synchronized<PointBuffer> buf)) {
+        key.Compact();
         buf = new Synchronized<PointBuffer>(
             new PointBuffer(key, _cfg.MaxPointsPerSeries, _cfg.OnFull, _cfg.SamplingPeriod));
-        buf = _points.GetOrAdd(buf.Value.Key, buf);
+        buf = _points.GetOrAdd(key, buf);
       }
 
       bool becameFull;
       bool overfull;
       lock (buf.Monitor) {
         bool wasFull = buf.Value.Full;
-        buf.Value.Add(t, p.Fields);
+        buf.Value.Add(p);
         becameFull = !wasFull && buf.Value.Full;
         overfull = buf.Value.Overfull;
       }

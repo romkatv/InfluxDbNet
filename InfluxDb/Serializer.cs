@@ -37,7 +37,7 @@ namespace InfluxDb {
     static bool WritePoint(Point p, StringBuilder sb) {
       bool res = true;
       res &= WriteKey(p.Key.Name, sb);
-      foreach (var kv in Named(NameTable.Tags.Array, p.Key.Tags).OrderBy(kv => kv.Key)) {
+      foreach (var kv in p.Key.GetTags().OrderBy(kv => kv.Key)) {
         sb.Append(',');
         res &= WriteKey(kv.Key, sb);
         sb.Append('=');
@@ -46,7 +46,7 @@ namespace InfluxDb {
 
       sb.Append(' ');
       bool first = true;
-      foreach (var kv in Named(NameTable.Fields.Array, p.Value.Fields)) {
+      foreach (var kv in p.Value.GetFields()) {
         if (first) first = false;
         else sb.Append(',');
 
@@ -77,21 +77,6 @@ namespace InfluxDb {
       } else {
         Strings.Escape(key, '\\', KeySpecialChars, sb);
         return true;
-      }
-    }
-
-    static IEnumerable<KeyValuePair<string, Field>> Named(string[] names, FastList<Field> values) {
-      for (int i = 0; i != values.Count; ++i) {
-        if (!values[i].HasValue) continue;
-        yield return new KeyValuePair<string, Field>(names[i], values[i]);
-      }
-    }
-
-    static IEnumerable<KeyValuePair<string, string>> Named(string[] names, FastList<Indexed<string>> values) {
-      for (int i = 0; i != values.Count; ++i) {
-        Indexed<string> x = values[i];
-        if (x.Value == null) continue;
-        yield return new KeyValuePair<string, string>(names[x.Index], x.Value);
       }
     }
   }

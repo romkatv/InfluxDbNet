@@ -67,9 +67,11 @@
     <Compile Include="FastList.cs" />
     <Compile Include="Hash.cs" />
     <Compile Include="InternTable.cs" />
+    <Compile Include="IntrusiveList.cs" />
     <Compile Include="ListExtension.cs" />
     <Compile Include="LoggerExtension.cs" />
     <Compile Include="PeriodicAction.cs" />
+    <Compile Include="Pool.cs" />
     <Compile Include="PriorityQueue.cs" />
     <Compile Include="Publisher.cs" />
     <Compile Include="Reference.cs" />
